@@ -1,0 +1,75 @@
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AppConfig {
+    pub shortcut: String,
+    pub model_name: String,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            shortcut: "Alt+Space".to_string(),
+            model_name: "large-v3-turbo".to_string(),
+        }
+    }
+}
+
+pub fn config_path() -> PathBuf {
+    let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
+    base.join("DM-Voice").join("config.toml")
+}
+
+pub fn load_config() -> AppConfig {
+    let path = config_path();
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| toml::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_config(config: &AppConfig) -> Result<()> {
+    let path = config_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let contents = toml::to_string(config)?;
+    std::fs::write(&path, contents)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn with_temp_config<F: FnOnce(PathBuf)>(f: F) {
+        let dir = TempDir::new().unwrap();
+        f(dir.path().join("config.toml"));
+    }
+
+    #[test]
+    fn roundtrip_saves_and_loads() {
+        with_temp_config(|path| {
+            let cfg = AppConfig {
+                shortcut: "Ctrl+D".to_string(),
+                model_name: "small".to_string(),
+            };
+            let contents = toml::to_string(&cfg).unwrap();
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, contents).unwrap();
+            let loaded: AppConfig = toml::from_str(
+                &std::fs::read_to_string(&path).unwrap()
+            ).unwrap();
+            assert_eq!(loaded, cfg);
+        });
+    }
+
+    #[test]
+    fn load_returns_default_when_missing() {
+        let result: AppConfig = toml::from_str("").unwrap_or_default();
+        assert_eq!(result.shortcut, AppConfig::default().shortcut);
+    }
+}
