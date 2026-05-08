@@ -1,0 +1,32 @@
+{
+  "productName": "DM Voice",
+  "version": "0.1.0",
+  "identifier": "de.dmvoice.app",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "overlay",
+        "url": "overlay/index.html",
+        "width": 120,
+        "height": 40,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "resizable": false,
+        "center": true,
+        "focus": false
+      }
+    ],
+    "trayIcon": {
+      "iconPath": "icons/icon.png"
+    },
+    "security": {
+      "csp": null
+    }
+  }
+}
