@@ -23,21 +23,27 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey) mods.push('Ctrl');
   if (e.metaKey) mods.push('Super');
   if (e.shiftKey) mods.push('Shift');
-  // Map e.key values to Tauri-compatible key names
-  const KEY_MAP = {
-    ' ': 'Space',
-    'ArrowUp': 'ArrowUp',
-    'ArrowDown': 'ArrowDown',
-    'ArrowLeft': 'ArrowLeft',
-    'ArrowRight': 'ArrowRight',
-    'Escape': 'Escape',
-    'Enter': 'Enter',
-    'Backspace': 'Backspace',
-    'Tab': 'Tab',
-    'Delete': 'Delete',
+  // Use e.code (physical key, layout-independent) instead of e.key.
+  // On macOS, Option+Space generates a non-breaking space in e.key,
+  // so e.key is unreliable for modifier combos.
+  const CODE_MAP = {
+    'Space': 'Space', 'Enter': 'Enter', 'Backspace': 'Backspace',
+    'Tab': 'Tab', 'Delete': 'Delete', 'Escape': 'Escape', 'Home': 'Home',
+    'End': 'End', 'PageUp': 'PageUp', 'PageDown': 'PageDown', 'Insert': 'Insert',
+    'ArrowUp': 'ArrowUp', 'ArrowDown': 'ArrowDown',
+    'ArrowLeft': 'ArrowLeft', 'ArrowRight': 'ArrowRight',
+    'F1':'F1','F2':'F2','F3':'F3','F4':'F4','F5':'F5','F6':'F6',
+    'F7':'F7','F8':'F8','F9':'F9','F10':'F10','F11':'F11','F12':'F12',
   };
-  const rawKey = e.key;
-  const key = KEY_MAP[rawKey] || rawKey.toUpperCase();
+  let key;
+  const code = e.code;
+  if (code.startsWith('Key')) {
+    key = code.slice(3); // 'KeyA' → 'A'
+  } else if (code.startsWith('Digit')) {
+    key = code.slice(5); // 'Digit1' → '1'
+  } else {
+    key = CODE_MAP[code] || code;
+  }
   if (['ALT', 'CONTROL', 'META', 'SHIFT'].includes(key)) return;
   const shortcut = [...mods, key].join('+');
   shortcutBox.textContent = shortcut;
