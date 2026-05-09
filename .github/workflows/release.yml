@@ -97,14 +97,21 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Setup MSVC environment
-        # whisper.cpp's Vulkan-Backend baut intern `vulkan-shaders-gen` als
-        # ExternalProject mit eigenem CMake-Run. Dieser nested Build findet
-        # CMAKE_C_COMPILER nicht, weil der vcvarsall-Env nicht im Shell-Scope
-        # ist. ilammy/msvc-dev-cmd exportiert CL, INCLUDE, LIB etc. ins
-        # Workflow-Env, sodass auch der innere Build MSVC erkennt.
+        # vcvarsall env (CL, INCLUDE, LIB, PATH) für alle nachfolgenden
+        # Steps. Ninja-Build erkennt MSVC dann via cl.exe im PATH.
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: ${{ matrix.arch }}
+
+      - name: Install Ninja
+        # whisper.cpp's Vulkan-Backend baut intern `vulkan-shaders-gen`
+        # als CMake ExternalProject. Mit dem Visual-Studio-Generator
+        # entstehen geschachtelte MSBuild-CustomBuild→cmake-Aufrufe, in
+        # denen die vcvarsall-Env vom inneren Sub-Process nicht erreicht
+        # wird (Compiler-Detection scheitert). Ninja baut flach: ein
+        # einziger cmake-Run, ein Ninja-Process, vcvars-Env wird sauber
+        # durchgereicht.
+        run: choco install ninja -y --no-progress
 
       - name: Install Vulkan SDK
         # whisper-rs `vulkan` feature braucht Vulkan-Header + libs zur
@@ -123,15 +130,15 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # whisper.cpp's Vulkan-Backend baut intern `vulkan-shaders-gen`
-          # via CMake ExternalProject_Add ohne expliziten Generator. Ohne
-          # diese env-Vars wählt der innere CMake einen Default-Generator,
-          # der den MSVC-Compiler nicht detektiert (CMAKE_C_COMPILER not
-          # found). Mit gesetzten CMAKE_GENERATOR_* nutzt jeder CMake-Run
-          # — outer wie inner — denselben VS-2022-Generator und Toolset.
-          CMAKE_GENERATOR: "Visual Studio 17 2022"
-          CMAKE_GENERATOR_PLATFORM: "x64"
-          CMAKE_GENERATOR_TOOLSET: "host=x64"
+          # Ninja statt Visual Studio Generator: vermeidet die
+          # geschachtelten MSBuild-CustomBuild-Steps, die das nested
+          # ExternalProject (vulkan-shaders-gen) bei whisper.cpp's
+          # Vulkan-Backend zum Crashen brachten. cmake-rs liest
+          # CMAKE_GENERATOR aus dem Env, sodass sowohl outer (whisper-rs-sys)
+          # als auch inner (vulkan-shaders-gen) cmake-Aufrufe Ninja nutzen.
+          CMAKE_GENERATOR: "Ninja"
+          CC: "cl"
+          CXX: "cl"
           # Kein Code-Signing in CI (kein EV-Cert vorhanden). User sehen
           # SmartScreen-Warnung beim ersten Start.
         with:
