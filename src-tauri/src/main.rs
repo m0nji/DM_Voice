@@ -747,9 +747,14 @@ fn main() {
                 &state.update.lock().unwrap(),
             )?;
 
-            let tray_icon_img = tauri::image::Image::from_path(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("icons/tray-icon.png"),
-            )
+            // Bake the tray icon into the binary at compile time. Loading via
+            // env!("CARGO_MANIFEST_DIR") only works on the build machine; in CI
+            // builds the path doesn't exist on the user's Mac, the load fails,
+            // and the template-mode fallback to default_window_icon shows as
+            // a white square in the menu bar.
+            let tray_icon_img = tauri::image::Image::from_bytes(include_bytes!(
+                "../icons/tray-icon.png"
+            ))
             .unwrap_or_else(|_| app.default_window_icon().unwrap().clone());
 
             TrayIconBuilder::with_id("main")
