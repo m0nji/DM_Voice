@@ -60,7 +60,7 @@ jobs:
             Beim ersten Start: Rechtsklick → "Öffnen" (App ist nicht von Apple
             notarisiert), dann Mikrofon- und Bedienungshilfen-Permissions
             erteilen.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
           projectPath: src-tauri
