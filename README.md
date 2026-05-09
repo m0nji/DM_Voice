@@ -1,47 +1,47 @@
 # DM Voice
 
-Push-to-Talk Speech-to-Text App für macOS. Hotkey halten → sprechen → loslassen → Text wird in das gerade aktive Textfeld eingefügt. Lokal, offline, mit Whisper.
+Push-to-Talk Speech-to-Text app for macOS. Hold the hotkey → speak → release → text gets injected into the currently active text field. Local, offline, powered by Whisper.
 
-![DM Voice — Hotkey halten, sprechen, Text erscheint](assets/demo.svg)
+![DM Voice — hold the hotkey, speak, watch the text appear](assets/demo.svg)
 
-## Oberfläche
+## Interface
 
-| Tray-Menü | Einstellungen |
+| Tray menu | Settings |
 |:---:|:---:|
-| <img src="assets/tray-menu.svg" alt="Tray-Menü mit Modell-Auswahl, Auto-Start und Einstellungen" width="320"> | <img src="assets/settings.svg" alt="Einstellungs-Fenster mit Hotkey, Berechtigungen und Modellverwaltung" width="320"> |
+| <img src="assets/tray-menu.svg" alt="Tray menu with model picker, autostart toggle and settings" width="320"> | <img src="assets/settings.svg" alt="Settings window with hotkey, permissions and model management" width="320"> |
 
-> Die Mockups oben spiegeln die echte UI in Aufbau und Verhalten wider; minimale visuelle Abweichungen zur tatsächlichen App können durch macOS-Renderer und gewählte System-Akzentfarbe entstehen.
+> These mockups mirror the actual UI in structure and behavior. Minor visual differences from the real app may stem from the macOS renderer and the user's accent color choice.
 
 ## Features
 
-- **Push-to-Talk** über frei wählbaren Hotkey (Standard: `Alt+Space`)
-- **Whisper-Modelle** zur Auswahl (tiny / small / medium / large-v3-turbo / large-v3) — direkt im Tray-Menü umschaltbar
-- **Lokal & offline** — kein Cloud-Upload, läuft mit Metal-Beschleunigung auf Apple Silicon
-- **Text-Injection** in jede aktive App via Cmd+V (CGEvent + AX-API)
-- **Auto-Start beim Login** als Option im Tray-Menü
-- **Aufnahmelimit**: 60 Sekunden pro Push-to-Talk
+- **Push-to-talk** with a freely configurable hotkey (default: `Alt+Space`)
+- **Whisper models** to choose from (tiny / small / medium / large-v3-turbo / large-v3) — switchable directly from the tray menu
+- **Local & offline** — no cloud upload, runs with Metal acceleration on Apple Silicon
+- **Text injection** into any active app via Cmd+V (CGEvent + AX API)
+- **Launch at login** as a tray-menu toggle
+- **Recording limit**: 60 seconds per push-to-talk
 
 ## Installation
 
-1. **Download**: aktuelles DMG aus den [Releases](https://github.com/m0nji/DM_Voice/releases) holen
-2. **DMG öffnen** und `DM Voice.app` nach `/Applications` ziehen
-3. **Erster Start**: Rechtsklick auf die App → "Öffnen" → im Dialog "Öffnen" bestätigen
-   *(Die App ist nicht von Apple notarisiert — daher zeigt macOS einmalig die Gatekeeper-Warnung. Doppelklick funktioniert ab dem zweiten Mal.)*
-4. **Permissions** beim ersten Start erteilen:
-   - **Mikrofon** — für die Aufnahme
-   - **Bedienungshilfen** — für das Einfügen des Textes per Cmd+V
+1. **Download**: grab the latest DMG from [Releases](https://github.com/m0nji/DM_Voice/releases)
+2. **Open the DMG** and drag `DM Voice.app` into `/Applications`
+3. **First launch**: right-click the app → "Open" → confirm "Open" in the dialog
+   *(The app is not notarized by Apple, so macOS shows the Gatekeeper warning once. Double-click works from the second launch onward.)*
+4. **Grant permissions** on first run:
+   - **Microphone** — to capture audio
+   - **Accessibility** — to inject text via Cmd+V
 
-Beim ersten Start wird automatisch das `large-v3-turbo`-Modell (~874 MB) heruntergeladen. Andere Modelle können danach im Tray-Menü angefordert werden.
+On first launch the `large-v3-turbo` model (~874 MB) is downloaded automatically. Other models can be fetched afterward from the tray menu.
 
-## Benutzung
+## Usage
 
-- **Aufnahme**: Hotkey halten (Standard `Alt+Space`), sprechen, loslassen → Text wird ins aktive Feld eingefügt
-- **Tray-Icon klicken**: Menü mit Modell-Auswahl, Auto-Start-Toggle, Einstellungen, Beenden
-- **Einstellungen** → Hotkey ändern, Permissions prüfen, Modelle herunter-/löschen
+- **Recording**: hold the hotkey (default `Alt+Space`), speak, release → text is inserted into the active field
+- **Click the tray icon**: opens the menu with model picker, autostart toggle, settings, quit
+- **Settings** → change hotkey, check permissions, download/delete models
 
-## Build aus dem Quellcode
+## Building from source
 
-Voraussetzungen: macOS 13+, Rust toolchain, Tauri CLI (`cargo install tauri-cli`).
+Prerequisites: macOS 13+, Rust toolchain, Tauri CLI (`cargo install tauri-cli`).
 
 ```bash
 git clone https://github.com/m0nji/DM_Voice.git
@@ -49,23 +49,23 @@ cd DM_Voice/src-tauri
 cargo tauri build --bundles app,dmg
 ```
 
-Das fertige Bundle liegt unter `src-tauri/target/release/bundle/macos/DM Voice.app`,
-das DMG unter `src-tauri/target/release/bundle/dmg/`.
+The resulting bundle is at `src-tauri/target/release/bundle/macos/DM Voice.app`,
+the DMG at `src-tauri/target/release/bundle/dmg/`.
 
-**Wichtig**: Wenn du selbst signierst, lass das Hardened-Runtime-Flag weg
-(`codesign` ohne `--options runtime`) — sonst unterdrückt macOS den
-Mikrofon-TCC-Prompt stillschweigend bei lokalen Self-Signed Certs.
+**Important**: If you sign the build yourself, omit the hardened-runtime flag
+(`codesign` without `--options runtime`) — otherwise macOS silently suppresses
+the microphone TCC prompt for locally self-signed certs.
 
-## Lizenz
+## License
 
-DM Voice steht unter der **GNU General Public License v3.0 or later** (GPL-3.0+).
-Volltext siehe [LICENSE](LICENSE).
+DM Voice is licensed under the **GNU General Public License v3.0 or later** (GPL-3.0+).
+See [LICENSE](LICENSE) for the full text.
 
-Kurzfassung:
-- Du darfst die App nutzen, modifizieren und weitergeben — auch kommerziell.
-- Wenn du eine modifizierte Version weitergibst, musst du den vollständigen
-  Quellcode unter derselben (oder einer kompatiblen späteren) GPL-Lizenz mit
-  veröffentlichen. Closed-Source-Forks sind nicht erlaubt.
-- Keine Gewährleistung, keine Haftung — siehe LICENSE Sections 15 und 16.
+In short:
+- You may use, modify and redistribute the app — including commercially.
+- If you redistribute a modified version, you must also publish its complete
+  source code under the same (or a compatible later) GPL license.
+  Closed-source forks are not permitted.
+- No warranty, no liability — see LICENSE sections 15 and 16.
 
-© 2026 DM Apps. Beiträge per Pull Request willkommen.
+© 2026 DM Apps. Pull requests welcome.
