@@ -30,6 +30,7 @@
     }
   },
   "bundle": {
+    "active": true,
     "macOS": {
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "13.0"
