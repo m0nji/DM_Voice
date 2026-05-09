@@ -139,6 +139,12 @@ jobs:
           CMAKE_GENERATOR: "Ninja"
           CC: "cl"
           CXX: "cl"
+          # /FS (Force Synchronous PDB Write): mit Ninja-Parallelism schreiben
+          # mehrere cl.exe-Instanzen in dieselbe vc140.pdb (z.B. CMake's
+          # try_compile-Tests im inner ExternalProject) und kollidieren mit
+          # "C1041: cannot open program database". Die CL env-Var wird von
+          # MSVC's cl.exe automatisch zu jedem Aufruf gehängt.
+          CL: "/FS"
           # Kein Code-Signing in CI (kein EV-Cert vorhanden). User sehen
           # SmartScreen-Warnung beim ersten Start.
         with:
