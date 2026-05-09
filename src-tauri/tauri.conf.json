@@ -1,6 +1,6 @@
 {
   "productName": "DM Voice",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "de.dmvoice.app",
   "build": {
     "frontendDist": "../src"
@@ -11,13 +11,15 @@
       {
         "label": "overlay",
         "url": "overlay/index.html",
-        "width": 120,
-        "height": 40,
+        "width": 220,
+        "height": 52,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
         "visible": false,
         "skipTaskbar": true,
+        "focusable": false,
+        "shadow": false,
         "resizable": false,
         "x": 0,
         "y": 0,
@@ -40,8 +42,7 @@
     "resources": ["resources/ggml-metal.metal"],
     "macOS": {
       "entitlements": "entitlements.plist",
-      "minimumSystemVersion": "13.0",
-      "signingIdentity": "DM Voice Local"
+      "minimumSystemVersion": "13.0"
     }
   }
 }

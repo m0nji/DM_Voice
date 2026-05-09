@@ -31,21 +31,53 @@
     padding: 4px 10px; font-size: 12px; cursor: pointer;
   }
   button.danger { background: #ff453a; }
+  button.subtle { background: #2c2c2e; color: #e0e0e0; }
   .progress { height: 4px; background: #3a3a3c; border-radius: 2px; margin-top: 4px; }
   .progress-bar { height: 100%; background: #0a84ff; border-radius: 2px;
                   width: 0%; transition: width 200ms; }
+  .perm-row { display: flex; align-items: center; padding: 6px 0;
+              border-bottom: 1px solid #2c2c2e; gap: 8px; }
+  .perm-row:last-child { border-bottom: none; }
+  .perm-name { flex: 1; font-weight: 500; }
+  .perm-status {
+    font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 500;
+  }
+  .perm-status.granted { background: rgba(48,209,88,0.18); color: #30d158; }
+  .perm-status.denied { background: rgba(255,69,58,0.18); color: #ff453a; }
+  .perm-status.not_determined { background: rgba(255,159,10,0.18); color: #ff9f0a; }
+  .perm-status.restricted { background: rgba(255,159,10,0.18); color: #ff9f0a; }
+  .perm-status.unknown { background: rgba(142,142,147,0.25); color: #aeaeb2; }
 </style>
 </head>
 <body>
 <h1>DM Voice</h1>
+
 <div class="field">
   <label>Shortcut</label>
   <div class="shortcut-box" id="shortcut-box">Klicken zum Ändern</div>
 </div>
+
+<div class="field">
+  <label>Berechtigungen</label>
+  <div id="perm-list">
+    <div class="perm-row" id="perm-mic">
+      <div class="perm-name">Mikrofon</div>
+      <span class="perm-status unknown">…</span>
+      <button class="subtle">Öffnen</button>
+    </div>
+    <div class="perm-row" id="perm-ax">
+      <div class="perm-name">Bedienungshilfen</div>
+      <span class="perm-status unknown">…</span>
+      <button class="subtle">Öffnen</button>
+    </div>
+  </div>
+</div>
+
 <div class="field">
   <label>Modelle</label>
   <div id="model-list"></div>
 </div>
+
 <script src="settings.js"></script>
 </body>
 </html>

@@ -124,3 +124,41 @@ listen('model-download-progress', (e) => {
 });
 
 loadModels();
+
+// --- Permissions ---
+const PERM_LABELS = {
+  granted: 'Erteilt',
+  denied: 'Verweigert',
+  not_determined: 'Nicht erteilt',
+  restricted: 'Eingeschränkt',
+  unknown: '–',
+};
+
+function renderPermRow(rowId, status, paneName) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const badge = row.querySelector('.perm-status');
+  const btn = row.querySelector('button');
+  badge.className = 'perm-status ' + status;
+  badge.textContent = PERM_LABELS[status] || status;
+  // For not_determined → ask app to prompt; otherwise → open System Settings
+  btn.textContent = status === 'not_determined' ? 'Anfragen' : 'Öffnen';
+  btn.onclick = () => {
+    if (status === 'not_determined') {
+      invoke('request_permissions').then(() => setTimeout(loadPermissions, 500));
+    } else {
+      invoke('open_privacy_pane', { pane: paneName });
+    }
+  };
+}
+
+function loadPermissions() {
+  invoke('get_permissions').then(s => {
+    renderPermRow('perm-mic', s.microphone, 'Microphone');
+    renderPermRow('perm-ax', s.accessibility, 'Accessibility');
+  });
+}
+
+loadPermissions();
+// Re-poll periodically so the badge updates after the user toggles in System Settings
+setInterval(loadPermissions, 2000);

@@ -1,9 +1,11 @@
-const pill = document.getElementById('pill');
-const bars = Array.from(document.querySelectorAll('.bar'));
-const BASE_HEIGHT = 4;
-const MAX_HEIGHT = 24;
+const pill  = document.getElementById('pill');
+const bars  = Array.from(document.querySelectorAll('.bar'));
+const label = document.getElementById('label');
 
-let state = 'idle'; // idle | recording | processing | done
+const BASE = 4;
+const MAX  = 20;
+
+let state = 'idle';
 let pulseFrame = null;
 
 function setHeights(heights) {
@@ -13,12 +15,10 @@ function setHeights(heights) {
 function startPulse() {
   let t = 0;
   function tick() {
-    t += 0.05;
-    const heights = bars.map((_, i) =>
-      BASE_HEIGHT + (MAX_HEIGHT - BASE_HEIGHT) * 0.3 *
-      (0.5 + 0.5 * Math.sin(t + i * 0.8))
-    );
-    setHeights(heights);
+    t += 0.07;
+    setHeights(bars.map((_, i) =>
+      BASE + (MAX - BASE) * 0.45 * (0.5 + 0.5 * Math.sin(t + i * 0.9))
+    ));
     pulseFrame = requestAnimationFrame(tick);
   }
   tick();
@@ -31,20 +31,23 @@ function stopPulse() {
 function setState(newState) {
   state = newState;
   stopPulse();
-  pill.classList.remove('done');
+  pill.classList.remove('visible', 'processing', 'done');
+
   if (newState === 'idle') {
-    pill.classList.remove('visible');
-    setHeights([8, 8, 8, 8, 8]);
+    setHeights([6, 6, 6, 6, 6]);
   } else if (newState === 'recording') {
     pill.classList.add('visible');
-    // heights driven by amplitude events
+    label.textContent = 'Aufnahme';
+    setHeights([6, 6, 6, 6, 6]);
   } else if (newState === 'processing') {
-    pill.classList.add('visible');
+    pill.classList.add('visible', 'processing');
+    label.textContent = 'Transkribiere …';
     startPulse();
   } else if (newState === 'done') {
     pill.classList.add('visible', 'done');
-    setHeights([12, 16, 20, 16, 12]);
-    setTimeout(() => setState('idle'), 350);
+    label.textContent = 'Fertig';
+    setHeights([4, 10, 16, 10, 4]);
+    setTimeout(() => setState('idle'), 380);
   }
 }
 
@@ -53,11 +56,10 @@ const { event } = window.__TAURI__;
 event.listen('amplitude', (e) => {
   if (state !== 'recording') return;
   const amp = Math.min(1.0, e.payload);
-  const heights = bars.map((_, i) => {
+  setHeights(bars.map((_, i) => {
     const wave = 0.5 + 0.5 * Math.sin(Date.now() / 80 + i * 1.2);
-    return BASE_HEIGHT + amp * wave * (MAX_HEIGHT - BASE_HEIGHT);
-  });
-  setHeights(heights);
+    return BASE + amp * wave * (MAX - BASE);
+  }));
 });
 
 event.listen('recording-state', (e) => {

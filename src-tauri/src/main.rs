@@ -2,12 +2,15 @@
 
 mod audio;
 mod config;
+#[macro_use]
+mod dlog;
 mod injector;
 mod models;
+mod permissions;
 mod shortcut;
 mod transcriber;
 
-use audio::AudioCapture;
+use audio::{audio_stats, AudioCapture, TARGET_SAMPLE_RATE};
 use config::{load_config, save_config, AppConfig};
 use models::ModelInfo;
 use std::sync::{Arc, Mutex};
@@ -51,9 +54,17 @@ struct AppState {
     auto_stop: Mutex<bool>,
     config: Mutex<AppConfig>,
     transcriber: Mutex<Option<WhisperTranscriber>>,
+    // PID of the app that was frontmost BEFORE the overlay was shown.
+    // Captured in on_shortcut_pressed so CGEventPostToPid targets the right window
+    // even if showing the overlay briefly activates DM Voice itself.
+    frontmost_pid: Mutex<Option<i32>>,
 }
 
 type SharedState = Arc<AppState>;
+
+const OVERLAY_WIDTH: f64 = 220.0;
+const OVERLAY_HEIGHT: f64 = 52.0;
+const OVERLAY_BOTTOM_MARGIN: f64 = 60.0;
 
 #[tauri::command]
 fn get_config(state: State<'_, SharedState>) -> AppConfig {
@@ -84,6 +95,54 @@ fn delete_model(filename: String) -> Result<(), String> {
     models::delete_model(&filename).map_err(|e| e.to_string())
 }
 
+/// Switch the active transcription model. Persists to config, reloads the
+/// Whisper transcriber in-place, and rebuilds the tray menu so the checkmark
+/// follows the new selection.
+#[tauri::command]
+fn set_active_model(
+    name: String,
+    state: State<'_, SharedState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let info = models::list_models()
+        .into_iter()
+        .find(|m| m.name == name && m.installed)
+        .ok_or_else(|| format!("model '{}' not installed", name))?;
+    {
+        let mut cfg = state.config.lock().unwrap();
+        cfg.model_name = name.clone();
+        save_config(&cfg).map_err(|e| e.to_string())?;
+    }
+    let path = models::model_path(&info.filename);
+    let new_t = transcriber::WhisperTranscriber::new(&path).map_err(|e| e.to_string())?;
+    *state.transcriber.lock().unwrap() = Some(new_t);
+    dlog!("active model switched to {}", name);
+    rebuild_tray_menu(&app, &state);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_permissions() -> permissions::PermissionStatus {
+    permissions::status()
+}
+
+#[tauri::command]
+fn request_permissions() {
+    permissions::request_all();
+}
+
+#[tauri::command]
+fn open_privacy_pane(pane: String) {
+    // Opens System Settings → Privacy & Security → <pane>
+    // pane: "Microphone" or "Accessibility"
+    let url = match pane.as_str() {
+        "Microphone" => "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+        "Accessibility" => "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        _ => return,
+    };
+    let _ = std::process::Command::new("open").arg(url).spawn();
+}
+
 #[tauri::command]
 async fn download_model(filename: String, app: AppHandle) -> Result<(), String> {
     let name = filename
@@ -103,15 +162,16 @@ async fn download_model(filename: String, app: AppHandle) -> Result<(), String> 
 
 fn show_overlay(app: &AppHandle, state_name: &str) {
     if let Some(w) = app.get_webview_window("overlay") {
+        configure_overlay_window(&w);
         // Position at bottom-center of the primary monitor (like SuperWhisper mini)
         if let Ok(Some(monitor)) = w.primary_monitor() {
             let mw = monitor.size().width as f64;
             let mh = monitor.size().height as f64;
             let scale = monitor.scale_factor();
-            let pill_w = 120.0 * scale;
-            let pill_h = 40.0 * scale;
-            let x = ((mw - pill_w) / 2.0) as i32;
-            let y = (mh - pill_h - 60.0 * scale) as i32;
+            let overlay_w = OVERLAY_WIDTH * scale;
+            let overlay_h = OVERLAY_HEIGHT * scale;
+            let x = ((mw - overlay_w) / 2.0) as i32;
+            let y = (mh - overlay_h - OVERLAY_BOTTOM_MARGIN * scale) as i32;
             let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
         }
         let _ = w.show();
@@ -126,35 +186,249 @@ fn hide_overlay(app: &AppHandle) {
     }
 }
 
+fn configure_overlay_window(w: &tauri::WebviewWindow) {
+    // Do NOT call set_background_color here — it can re-enable isOpaque on the
+    // WKWebView and break the transparency set by transparent:true in the config.
+    let _ = w.set_focusable(false);
+    let _ = w.set_ignore_cursor_events(true);
+    let _ = w.set_shadow(false);
+    set_webview_transparent(w);
+}
+
+/// Force WKWebView (and any wrapping NSViews) to be non-opaque using raw Objective-C.
+/// Tauri's `transparent: true` should do this, but in practice the rectangular border
+/// (visible behind the rounded pill) shows that *some* layer in the view hierarchy
+/// is still painting an opaque background. This walks the entire NSView tree from
+/// `wv.inner()` and forces transparency on every layer, logging the class of each
+/// view and its before/after isOpaque state so we can see exactly which layer was
+/// the culprit.
+#[cfg(target_os = "macos")]
+fn set_webview_transparent(w: &tauri::WebviewWindow) {
+    use std::ffi::c_void;
+    extern "C" {
+        fn sel_registerName(name: *const u8) -> *mut c_void;
+        fn objc_msgSend(recv: *mut c_void, sel: *mut c_void, ...) -> *mut c_void;
+        fn objc_getClass(name: *const u8) -> *mut c_void;
+    }
+    type MsgIdNoArg = unsafe extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void;
+    type MsgSetBool = unsafe extern "C" fn(*mut c_void, *mut c_void, bool);
+    type MsgGetBool = unsafe extern "C" fn(*mut c_void, *mut c_void) -> bool;
+    type MsgRespondsTo = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> bool;
+    type MsgSetId = unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void);
+    type MsgGetIsize = unsafe extern "C" fn(*mut c_void, *mut c_void) -> isize;
+
+    unsafe fn class_name(obj: *mut c_void) -> String {
+        if obj.is_null() {
+            return "<null>".into();
+        }
+        let class_sel = sel_registerName(b"class\0".as_ptr());
+        let get_class: MsgIdNoArg = std::mem::transmute(objc_msgSend as *const ());
+        let cls = get_class(obj, class_sel);
+        if cls.is_null() {
+            return "<no class>".into();
+        }
+        let name_sel = sel_registerName(b"className\0".as_ptr());
+        let get_name: MsgIdNoArg = std::mem::transmute(objc_msgSend as *const ());
+        let nsstr = get_name(obj, name_sel);
+        if nsstr.is_null() {
+            return "<no name>".into();
+        }
+        let utf8_sel = sel_registerName(b"UTF8String\0".as_ptr());
+        type MsgPtr = unsafe extern "C" fn(*mut c_void, *mut c_void) -> *const i8;
+        let utf8: MsgPtr = std::mem::transmute(objc_msgSend as *const ());
+        let cstr = utf8(nsstr, utf8_sel);
+        if cstr.is_null() {
+            return "<no utf8>".into();
+        }
+        std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned()
+    }
+
+    unsafe fn read_bool(obj: *mut c_void, selector: &[u8]) -> Option<bool> {
+        let sel = sel_registerName(selector.as_ptr());
+        let resp_sel = sel_registerName(b"respondsToSelector:\0".as_ptr());
+        let resp: MsgRespondsTo = std::mem::transmute(objc_msgSend as *const ());
+        if !resp(obj, resp_sel, sel) {
+            return None;
+        }
+        let f: MsgGetBool = std::mem::transmute(objc_msgSend as *const ());
+        Some(f(obj, sel))
+    }
+
+    unsafe fn try_set_bool(obj: *mut c_void, selector: &[u8], val: bool) -> bool {
+        let sel = sel_registerName(selector.as_ptr());
+        let resp_sel = sel_registerName(b"respondsToSelector:\0".as_ptr());
+        let resp: MsgRespondsTo = std::mem::transmute(objc_msgSend as *const ());
+        if !resp(obj, resp_sel, sel) {
+            return false;
+        }
+        let f: MsgSetBool = std::mem::transmute(objc_msgSend as *const ());
+        f(obj, sel, val);
+        true
+    }
+
+    /// Walk an NSView tree, log each node, force isOpaque=NO + clear background.
+    unsafe fn walk(view: *mut c_void, depth: usize) {
+        if view.is_null() {
+            return;
+        }
+        let pad = "  ".repeat(depth);
+        let cls = class_name(view);
+        let opaque_before = read_bool(view, b"isOpaque\0");
+        let draws_before = read_bool(view, b"drawsBackground\0");
+        let _ = try_set_bool(view, b"setOpaque:\0", false);
+        let _ = try_set_bool(view, b"_setDrawsBackground:\0", false);
+        let _ = try_set_bool(view, b"setDrawsBackground:\0", false);
+        // Set layer.backgroundColor = clearColor (CGColor).
+        // wantsLayer:YES then [view layer] -> setBackgroundColor:[NSColor.clearColor CGColor]
+        let _ = try_set_bool(view, b"setWantsLayer:\0", true);
+        let layer_sel = sel_registerName(b"layer\0".as_ptr());
+        let layer_fn: MsgIdNoArg = std::mem::transmute(objc_msgSend as *const ());
+        let layer = layer_fn(view, layer_sel);
+        if !layer.is_null() {
+            let nscolor_cls = objc_getClass(b"NSColor\0".as_ptr());
+            let clear_sel = sel_registerName(b"clearColor\0".as_ptr());
+            let clear_fn: MsgIdNoArg = std::mem::transmute(objc_msgSend as *const ());
+            let clear = clear_fn(nscolor_cls, clear_sel);
+            let cg_sel = sel_registerName(b"CGColor\0".as_ptr());
+            let cg_fn: MsgIdNoArg = std::mem::transmute(objc_msgSend as *const ());
+            let cg_clear = cg_fn(clear, cg_sel);
+            let setbg_sel = sel_registerName(b"setBackgroundColor:\0".as_ptr());
+            let setbg: MsgSetId = std::mem::transmute(objc_msgSend as *const ());
+            setbg(layer, setbg_sel, cg_clear);
+        }
+        let opaque_after = read_bool(view, b"isOpaque\0");
+        let draws_after = read_bool(view, b"drawsBackground\0");
+        dlog!(
+            "{}view {:p} class={} isOpaque {:?}->{:?} drawsBg {:?}->{:?}",
+            pad,
+            view,
+            cls,
+            opaque_before,
+            opaque_after,
+            draws_before,
+            draws_after
+        );
+
+        // Recurse into subviews
+        let subviews_sel = sel_registerName(b"subviews\0".as_ptr());
+        let subviews_fn: MsgIdNoArg = std::mem::transmute(objc_msgSend as *const ());
+        let subviews = subviews_fn(view, subviews_sel);
+        if subviews.is_null() {
+            return;
+        }
+        let count_sel = sel_registerName(b"count\0".as_ptr());
+        let count_fn: MsgGetIsize = std::mem::transmute(objc_msgSend as *const ());
+        let count = count_fn(subviews, count_sel);
+        let obj_at_sel = sel_registerName(b"objectAtIndex:\0".as_ptr());
+        type MsgIdIdx = unsafe extern "C" fn(*mut c_void, *mut c_void, usize) -> *mut c_void;
+        let obj_at: MsgIdIdx = std::mem::transmute(objc_msgSend as *const ());
+        for i in 0..count as usize {
+            let child = obj_at(subviews, obj_at_sel, i);
+            walk(child, depth + 1);
+        }
+    }
+
+    let r = w.with_webview(|wv| {
+        let wk_view: *mut c_void = unsafe { std::mem::transmute(wv.inner()) };
+        unsafe {
+            dlog!(
+                "set_webview_transparent: wv.inner()={:p} class={}",
+                wk_view,
+                class_name(wk_view)
+            );
+            if wk_view.is_null() {
+                return;
+            }
+
+            // Climb up to the NSWindow contentView root and walk DOWN from there
+            // so we touch every NSView between the window and the WKWebView.
+            let win_sel = sel_registerName(b"window\0".as_ptr());
+            let win_fn: MsgIdNoArg = std::mem::transmute(objc_msgSend as *const ());
+            let nswindow = win_fn(wk_view, win_sel);
+            dlog!("set_webview_transparent: nswindow={:p} class={}", nswindow, class_name(nswindow));
+
+            if !nswindow.is_null() {
+                // Force the NSWindow itself to be non-opaque + clear background.
+                let _ = try_set_bool(nswindow, b"setOpaque:\0", false);
+                let _ = try_set_bool(nswindow, b"setHasShadow:\0", false);
+                let nscolor_cls = objc_getClass(b"NSColor\0".as_ptr());
+                let clear_sel = sel_registerName(b"clearColor\0".as_ptr());
+                let clear_fn: MsgIdNoArg = std::mem::transmute(objc_msgSend as *const ());
+                let clear = clear_fn(nscolor_cls, clear_sel);
+                let setbg_sel = sel_registerName(b"setBackgroundColor:\0".as_ptr());
+                let setbg: MsgSetId = std::mem::transmute(objc_msgSend as *const ());
+                setbg(nswindow, setbg_sel, clear);
+
+                let win_opaque = read_bool(nswindow, b"isOpaque\0");
+                dlog!("NSWindow isOpaque after force-clear: {:?}", win_opaque);
+
+                // Walk from contentView (root NSView)
+                let cv_sel = sel_registerName(b"contentView\0".as_ptr());
+                let cv_fn: MsgIdNoArg = std::mem::transmute(objc_msgSend as *const ());
+                let content_view = cv_fn(nswindow, cv_sel);
+                dlog!("contentView={:p} class={} -- walking subtree:", content_view, class_name(content_view));
+                walk(content_view, 0);
+            } else {
+                // Fall back to walking from the WKWebView only
+                walk(wk_view, 0);
+            }
+        }
+    });
+    if let Err(e) = r {
+        dlog!("set_webview_transparent: with_webview failed: {}", e);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn set_webview_transparent(_w: &tauri::WebviewWindow) {}
+
 fn trigger_transcription(app: AppHandle, state: SharedState) {
     tauri::async_runtime::spawn(async move {
         let buffer = {
             let mut audio = state.audio.lock().unwrap();
             audio.stop_and_get_buffer().unwrap_or_default()
         };
+        let stats = audio_stats(&buffer, TARGET_SAMPLE_RATE);
+        dlog!(
+            "Audio stats: duration={:.2}s rms={:.5} peak={:.5} active={:.3} samples={}",
+            stats.duration_secs,
+            stats.rms,
+            stats.peak,
+            stats.active_ratio,
+            buffer.len()
+        );
+        if buffer.is_empty() {
+            dlog!("Empty audio buffer — nothing to transcribe (mic permission missing?)");
+            hide_overlay(&app);
+            return;
+        }
         show_overlay(&app, "processing");
         let text = {
             let t = state.transcriber.lock().unwrap();
             if t.is_none() {
-                eprintln!("[DM Voice] Transcriber not loaded — model missing?");
+                dlog!("Transcriber not loaded — model missing?");
             }
             t.as_ref()
                 .and_then(|t| t.transcribe(&buffer).ok())
                 .unwrap_or_default()
         };
-        eprintln!("[DM Voice] Transcription result: {:?} ({} chars)", &text, text.len());
+        dlog!("Transcription result: {:?} ({} chars)", &text, text.len());
         if !text.is_empty() {
+            let target_pid = *state.frontmost_pid.lock().unwrap();
+            dlog!("injecting into pid={:?}", target_pid);
             // NSPasteboard + CGEventPost both work best on the main thread.
             let (tx, rx) = tokio::sync::oneshot::channel::<()>();
             let t = text.clone();
             let app2 = app.clone();
             let _ = app.run_on_main_thread(move || {
-                let result = injector::inject_text(&t);
-                eprintln!("[DM Voice] inject_text result: {:?}", result);
+                let result = injector::inject_text(&t, target_pid);
+                dlog!("inject_text result: {:?}", result);
                 if result.is_err() {
                     let _ = injector::copy_to_clipboard(&t);
                     use tauri_plugin_notification::NotificationExt;
-                    let _ = app2.notification().builder()
+                    let _ = app2
+                        .notification()
+                        .builder()
                         .title("DM Voice")
                         .body("Kein Textfeld aktiv — Text kopiert")
                         .show();
@@ -163,7 +437,7 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
             });
             let _ = rx.await;
         } else {
-            eprintln!("[DM Voice] Empty transcription — nothing to inject");
+            dlog!("Empty transcription — nothing to inject");
         }
         show_overlay(&app, "done");
         sleep(Duration::from_millis(400)).await;
@@ -175,13 +449,22 @@ fn on_shortcut_pressed(app: &AppHandle, state: &SharedState) {
     if state.recording_start.lock().unwrap().is_some() {
         return;
     }
+    dlog!("on_shortcut_pressed");
+    // Capture before show_overlay() — showing a Tauri window can briefly activate
+    // DM Voice, causing CGEventPost to paste into the wrong app.
+    let pid = injector::frontmost_app_pid();
+    *state.frontmost_pid.lock().unwrap() = pid;
+    dlog!("on_shortcut_pressed: captured frontmost_pid={:?}", pid);
+
     let mut audio = state.audio.lock().unwrap();
     if audio.start().is_err() {
+        dlog!("on_shortcut_pressed: audio.start() failed");
         return;
     }
     *state.recording_start.lock().unwrap() = Some(Instant::now());
     *state.auto_stop.lock().unwrap() = false;
     show_overlay(app, "recording");
+    dlog!("on_shortcut_pressed: overlay shown");
     drop(audio);
 
     let app2 = app.clone();
@@ -195,7 +478,7 @@ fn on_shortcut_pressed(app: &AppHandle, state: &SharedState) {
             };
             match elapsed {
                 None => break,
-                Some(d) if d > Duration::from_secs(30) => {
+                Some(d) if d > Duration::from_secs(60) => {
                     *state2.recording_start.lock().unwrap() = None;
                     *state2.auto_stop.lock().unwrap() = true;
                     trigger_transcription(app2.clone(), Arc::clone(&state2));
@@ -212,9 +495,11 @@ fn on_shortcut_pressed(app: &AppHandle, state: &SharedState) {
 fn on_shortcut_released(app: &AppHandle, state: &SharedState) {
     let start = state.recording_start.lock().unwrap().take();
     if *state.auto_stop.lock().unwrap() {
+        dlog!("on_shortcut_released: auto_stop already triggered");
         return;
     }
     let elapsed = start.map(|s| s.elapsed()).unwrap_or_default();
+    dlog!("on_shortcut_released: elapsed={:?}", elapsed);
     if elapsed < Duration::from_millis(300) {
         let mut audio = state.audio.lock().unwrap();
         let _ = audio.stop_and_get_buffer();
@@ -236,7 +521,64 @@ fn register_shortcut(app: &AppHandle, shortcut: &str, state: SharedState) {
         });
 }
 
+/// Build the tray dropdown: app name + version (disabled), separator, one
+/// CheckMenuItem per model (only installed ones are clickable, the active one
+/// is checked), separator, quit.
+fn build_tray_menu(
+    app: &AppHandle,
+    cfg: &AppConfig,
+) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
+
+    let header = MenuItem::with_id(
+        app,
+        "header",
+        format!("DM Voice {}", env!("CARGO_PKG_VERSION")),
+        false,
+        None::<&str>,
+    )?;
+    let sep1 = PredefinedMenuItem::separator(app)?;
+    let model_header = MenuItem::with_id(app, "model_header", "Modell", false, None::<&str>)?;
+
+    let mut model_items: Vec<CheckMenuItem<tauri::Wry>> = Vec::new();
+    for m in models::list_models() {
+        let id = format!("model:{}", m.name);
+        let label = if m.installed {
+            format!("  {}", m.name)
+        } else {
+            format!("  {}  (nicht heruntergeladen)", m.name)
+        };
+        let checked = m.installed && m.name == cfg.model_name;
+        let item = CheckMenuItem::with_id(app, &id, &label, m.installed, checked, None::<&str>)?;
+        model_items.push(item);
+    }
+    let sep2 = PredefinedMenuItem::separator(app)?;
+    let quit_item = MenuItem::with_id(app, "quit", "DM Voice beenden", true, None::<&str>)?;
+
+    let mut refs: Vec<&dyn IsMenuItem<tauri::Wry>> =
+        vec![&header, &sep1, &model_header];
+    for it in &model_items {
+        refs.push(it);
+    }
+    refs.push(&sep2);
+    refs.push(&quit_item);
+
+    Menu::with_items(app, &refs)
+}
+
+fn rebuild_tray_menu(app: &AppHandle, state: &SharedState) {
+    let cfg = state.config.lock().unwrap().clone();
+    if let Ok(menu) = build_tray_menu(app, &cfg) {
+        if let Some(tray) = app.tray_by_id("main") {
+            let _ = tray.set_menu(Some(menu));
+        }
+    }
+}
+
 fn main() {
+    dlog::init();
+    dlog!("dm-voice starting; pid={}", std::process::id());
+    permissions::request_all();
     let cfg = load_config();
     let state: SharedState = Arc::new(AppState {
         audio: Mutex::new(AudioGuard::new()),
@@ -244,6 +586,7 @@ fn main() {
         auto_stop: Mutex::new(false),
         config: Mutex::new(cfg.clone()),
         transcriber: Mutex::new(None),
+        frontmost_pid: Mutex::new(None),
     });
 
     tauri::Builder::default()
@@ -256,15 +599,25 @@ fn main() {
             list_models,
             delete_model,
             download_model,
+            set_active_model,
+            get_permissions,
+            request_permissions,
+            open_privacy_pane,
         ])
         .setup(move |app| {
+            if let Some(w) = app.get_webview_window("overlay") {
+                configure_overlay_window(&w);
+            }
 
             // Point whisper's Metal backend to the bundled ggml-metal.metal shader.
             // ggml-metal.m checks GGML_METAL_PATH_RESOURCES before falling back to
             // NSBundle lookup, which won't find files in subdirectories.
             if let Ok(res_dir) = app.path().resource_dir() {
                 let metal_dir = res_dir.join("resources");
-                std::env::set_var("GGML_METAL_PATH_RESOURCES", metal_dir.to_string_lossy().as_ref());
+                std::env::set_var(
+                    "GGML_METAL_PATH_RESOURCES",
+                    metal_dir.to_string_lossy().as_ref(),
+                );
             }
 
             // Load transcriber if model is installed
@@ -280,28 +633,51 @@ fn main() {
             }
 
             // System tray
-            use tauri::menu::{Menu, MenuItem};
             use tauri::tray::{TrayIconBuilder, TrayIconEvent};
             let app_handle = app.handle().clone();
+            let state_for_menu = Arc::clone(&state);
 
-            let quit_item =
-                MenuItem::with_id(app, "quit", "DM Voice beenden", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&quit_item])?;
+            let tray_menu = build_tray_menu(app.handle(), &state.config.lock().unwrap())?;
 
             let tray_icon_img = tauri::image::Image::from_path(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("icons/tray-icon.png"),
             )
             .unwrap_or_else(|_| app.default_window_icon().unwrap().clone());
 
-            TrayIconBuilder::new()
+            TrayIconBuilder::with_id("main")
                 .icon(tray_icon_img)
                 .icon_as_template(true)
                 .tooltip("DM Voice")
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(move |app, event| {
-                    if event.id() == "quit" {
+                    let id = event.id().as_ref().to_string();
+                    if id == "quit" {
                         app.exit(0);
+                    } else if let Some(model_name) = id.strip_prefix("model:") {
+                        let app2 = app.clone();
+                        let state2 = Arc::clone(&state_for_menu);
+                        let name = model_name.to_string();
+                        tauri::async_runtime::spawn(async move {
+                            // Switch model on a worker thread — Whisper init can take
+                            // several hundred ms and we don't want to block the menu.
+                            let info = models::list_models()
+                                .into_iter()
+                                .find(|m| m.name == name && m.installed);
+                            if let Some(info) = info {
+                                {
+                                    let mut cfg = state2.config.lock().unwrap();
+                                    cfg.model_name = name.clone();
+                                    let _ = save_config(&cfg);
+                                }
+                                let path = models::model_path(&info.filename);
+                                if let Ok(t) = transcriber::WhisperTranscriber::new(&path) {
+                                    *state2.transcriber.lock().unwrap() = Some(t);
+                                    dlog!("tray: active model switched to {}", name);
+                                }
+                                rebuild_tray_menu(&app2, &state2);
+                            }
+                        });
                     }
                 })
                 .on_tray_icon_event(move |_, event| {
@@ -316,7 +692,7 @@ fn main() {
                                 tauri::WebviewUrl::App("settings/index.html".into()),
                             )
                             .title("DM Voice")
-                            .inner_size(300.0, 420.0)
+                            .inner_size(300.0, 520.0)
                             .resizable(false)
                             .build();
                         }
@@ -335,6 +711,7 @@ fn main() {
                 .unwrap();
             if !models::model_path(default_model.1).exists() {
                 let app_handle2 = app.handle().clone();
+                let app_handle3 = app.handle().clone();
                 let filename = default_model.1.to_string();
                 let state2 = Arc::clone(&state);
                 tauri::async_runtime::spawn(async move {
@@ -350,6 +727,7 @@ fn main() {
                     if let Ok(t) = transcriber::WhisperTranscriber::new(&path) {
                         *state2.transcriber.lock().unwrap() = Some(t);
                     }
+                    rebuild_tray_menu(&app_handle3, &state2);
                 });
             }
 

@@ -7,12 +7,56 @@ use std::sync::{Arc, Mutex};
 
 pub const TARGET_SAMPLE_RATE: u32 = 16_000;
 
+#[derive(Debug, Clone, Copy)]
+pub struct AudioStats {
+    pub duration_secs: f32,
+    pub rms: f32,
+    pub peak: f32,
+    pub active_ratio: f32,
+}
+
 pub fn rms_amplitude(samples: &[f32]) -> f32 {
     if samples.is_empty() {
         return 0.0;
     }
     let mean_sq = samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32;
     mean_sq.sqrt().min(1.0)
+}
+
+pub fn peak_amplitude(samples: &[f32]) -> f32 {
+    samples
+        .iter()
+        .map(|s| s.abs())
+        .fold(0.0, f32::max)
+        .min(1.0)
+}
+
+pub fn active_ratio(samples: &[f32], threshold: f32) -> f32 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let active = samples.iter().filter(|s| s.abs() >= threshold).count();
+    active as f32 / samples.len() as f32
+}
+
+pub fn audio_stats(samples: &[f32], sample_rate: u32) -> AudioStats {
+    AudioStats {
+        duration_secs: samples.len() as f32 / sample_rate as f32,
+        rms: rms_amplitude(samples),
+        peak: peak_amplitude(samples),
+        active_ratio: active_ratio(samples, 0.012),
+    }
+}
+
+pub fn downmix_to_mono(input: &[f32], channels: u16) -> Vec<f32> {
+    let channels = channels.max(1) as usize;
+    if channels == 1 {
+        return input.to_vec();
+    }
+    input
+        .chunks_exact(channels)
+        .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+        .collect()
 }
 
 pub fn resample(input: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>> {
@@ -45,6 +89,7 @@ pub struct AudioCapture {
     amplitude: Arc<Mutex<f32>>,
     stream: Option<cpal::Stream>,
     sample_rate: u32,
+    channels: u16,
 }
 
 impl AudioCapture {
@@ -54,6 +99,7 @@ impl AudioCapture {
             amplitude: Arc::new(Mutex::new(0.0)),
             stream: None,
             sample_rate: TARGET_SAMPLE_RATE,
+            channels: 1,
         }
     }
 
@@ -65,6 +111,7 @@ impl AudioCapture {
         let supported = device.default_input_config()?;
         let sample_rate = supported.sample_rate().0;
         self.sample_rate = sample_rate;
+        self.channels = supported.channels();
         let buffer = Arc::clone(&self.buffer);
         let amplitude = Arc::clone(&self.amplitude);
         let config: cpal::StreamConfig = supported.into();
@@ -91,7 +138,8 @@ impl AudioCapture {
     pub fn stop_and_get_buffer(&mut self) -> Result<Vec<f32>> {
         self.stream.take();
         let raw = self.buffer.lock().unwrap().clone();
-        let resampled = resample(&raw, self.sample_rate, TARGET_SAMPLE_RATE)?;
+        let mono = downmix_to_mono(&raw, self.channels);
+        let resampled = resample(&mono, self.sample_rate, TARGET_SAMPLE_RATE)?;
         Ok(resampled)
     }
 }
@@ -115,6 +163,12 @@ mod tests {
     #[test]
     fn rms_of_empty_is_zero() {
         assert_eq!(rms_amplitude(&[]), 0.0);
+    }
+
+    #[test]
+    fn downmix_stereo_to_mono_averages_frames() {
+        let input = vec![0.2, 0.6, -0.4, 0.2];
+        assert_eq!(downmix_to_mono(&input, 2), vec![0.4, -0.1]);
     }
 
     #[test]

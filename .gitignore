@@ -16,3 +16,9 @@ src-tauri/gen/
 
 # System
 .DS_Store
+
+# Local tooling — never push these to public GitHub
+.claude/
+.superpowers/
+docs/
+*.log
