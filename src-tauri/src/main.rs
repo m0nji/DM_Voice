@@ -124,10 +124,14 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
         show_overlay(&app, "processing");
         let text = {
             let t = state.transcriber.lock().unwrap();
+            if t.is_none() {
+                eprintln!("[DM Voice] Transcriber not loaded — model missing?");
+            }
             t.as_ref()
                 .and_then(|t| t.transcribe(&buffer).ok())
                 .unwrap_or_default()
         };
+        eprintln!("[DM Voice] Transcription result: {:?} ({} chars)", &text, text.len());
         if !text.is_empty() {
             // enigo calls TSMGetInputSourceProperty which requires the main thread.
             // Marshal injection to the main thread and wait for it to complete.
@@ -135,7 +139,9 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
             let text_inject = text.clone();
             let app_notify = app.clone();
             let _ = app.run_on_main_thread(move || {
-                if injector::inject_text(&text_inject).is_err() {
+                let result = injector::inject_text(&text_inject);
+                eprintln!("[DM Voice] inject_text result: {:?}", result.is_ok());
+                if result.is_err() {
                     let _ = injector::copy_to_clipboard(&text_inject);
                     use tauri_plugin_notification::NotificationExt;
                     let _ = app_notify
@@ -148,6 +154,8 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
                 let _ = tx.send(());
             });
             let _ = rx.await;
+        } else {
+            eprintln!("[DM Voice] Empty transcription — nothing to inject");
         }
         show_overlay(&app, "done");
         sleep(Duration::from_millis(400)).await;

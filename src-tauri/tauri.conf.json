@@ -6,6 +6,7 @@
     "frontendDist": "../src"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "label": "overlay",
@@ -22,9 +23,6 @@
         "focus": false
       }
     ],
-    "trayIcon": {
-      "iconPath": "icons/icon.png"
-    },
     "security": {
       "csp": null
     }
