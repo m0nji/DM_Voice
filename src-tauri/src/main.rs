@@ -144,19 +144,24 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
         };
         eprintln!("[DM Voice] Transcription result: {:?} ({} chars)", &text, text.len());
         if !text.is_empty() {
-            // inject_text uses osascript (subprocess) — no main-thread constraint
-            let result = injector::inject_text(&text);
-            eprintln!("[DM Voice] inject_text result: {:?}", result);
-            if result.is_err() {
-                let _ = injector::copy_to_clipboard(&text);
-                use tauri_plugin_notification::NotificationExt;
-                let _ = app
-                    .notification()
-                    .builder()
-                    .title("DM Voice")
-                    .body("Kein Textfeld aktiv — Text kopiert")
-                    .show();
-            }
+            // NSPasteboard + CGEventPost both work best on the main thread.
+            let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+            let t = text.clone();
+            let app2 = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                let result = injector::inject_text(&t);
+                eprintln!("[DM Voice] inject_text result: {:?}", result);
+                if result.is_err() {
+                    let _ = injector::copy_to_clipboard(&t);
+                    use tauri_plugin_notification::NotificationExt;
+                    let _ = app2.notification().builder()
+                        .title("DM Voice")
+                        .body("Kein Textfeld aktiv — Text kopiert")
+                        .show();
+                }
+                let _ = tx.send(());
+            });
+            let _ = rx.await;
         } else {
             eprintln!("[DM Voice] Empty transcription — nothing to inject");
         }
