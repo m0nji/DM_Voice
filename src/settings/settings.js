@@ -42,20 +42,29 @@ function renderModels(models) {
     row.className = 'model-row';
     row.id = `model-${m.name}`;
     const sizeMb = Math.round(m.size_bytes / 1_000_000);
-    row.innerHTML = `
-      <div>
-        <div class="model-name">${m.name}</div>
-        <div class="model-meta">${sizeMb} MB · ${m.quality}</div>
-        <div class="progress" id="prog-${m.name}" style="display:none">
-          <div class="progress-bar" id="progbar-${m.name}"></div>
-        </div>
-      </div>
-      <div>
-        ${m.installed
-          ? `<button class="danger" onclick="deleteModel('${m.name}','${m.filename}')">Löschen</button>`
-          : `<button onclick="downloadModel('${m.name}','${m.filename}')">Download</button>`
-        }
+
+    const infoDiv = document.createElement('div');
+    infoDiv.innerHTML = `
+      <div class="model-name">${m.name}</div>
+      <div class="model-meta">${sizeMb} MB · ${m.quality}</div>
+      <div class="progress" id="prog-${m.name}" style="display:none">
+        <div class="progress-bar" id="progbar-${m.name}"></div>
       </div>`;
+
+    const btnDiv = document.createElement('div');
+    const btn = document.createElement('button');
+    if (m.installed) {
+      btn.className = 'danger';
+      btn.textContent = 'Löschen';
+      btn.addEventListener('click', () => deleteModel(m.name, m.filename));
+    } else {
+      btn.textContent = 'Download';
+      btn.addEventListener('click', () => downloadModel(m.name, m.filename));
+    }
+    btnDiv.appendChild(btn);
+
+    row.appendChild(infoDiv);
+    row.appendChild(btnDiv);
     modelList.appendChild(row);
   });
 }
