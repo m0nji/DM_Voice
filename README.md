@@ -2,6 +2,14 @@
 
 Push-to-Talk Speech-to-Text App für macOS. Hotkey halten → sprechen → loslassen → Text wird in das gerade aktive Textfeld eingefügt. Lokal, offline, mit Whisper.
 
+![DM Voice in Aktion](assets/demo.gif)
+
+## Screenshots
+
+| Tray-Menü | Einstellungen |
+|---|---|
+| ![Tray-Menü mit Modell-Auswahl, Auto-Start und Einstellungen](assets/tray-menu.png) | ![Einstellungs-Fenster mit Hotkey, Berechtigungen und Modellverwaltung](assets/settings.png) |
+
 ## Features
 
 - **Push-to-Talk** über frei wählbaren Hotkey (Standard: `Alt+Space`)

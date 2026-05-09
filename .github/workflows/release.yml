@@ -1,13 +1,13 @@
 name: Release
 
-# Builds DM Voice for macOS (Apple Silicon + Intel) and attaches the DMGs
-# to a GitHub Release. Triggered by pushing a tag of the form `v*` (e.g.
+# Builds DM Voice for macOS Apple Silicon and attaches the DMG to a
+# GitHub Release. Triggered by pushing a tag of the form `v*` (e.g.
 # `v0.2.0`) or manually from the Actions tab.
 #
-# Windows support is intentionally not built here yet: the macOS-specific
-# permission, key-injection and accessibility code in src-tauri/src would
-# need a Windows port (CGEvent → SendInput, AVFoundation → MMDevice, etc.)
-# before a Windows artifact would be useful.
+# Intel and Windows are intentionally not built: Intel-mac demand is
+# minimal in 2026 and queue times for `macos-13` runners are long;
+# Windows would need a port of the macOS-only code paths in
+# src-tauri/src (CGEvent → SendInput, AVFoundation → MMDevice, AX → UIA).
 
 on:
   push:
@@ -24,12 +24,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-14        # Apple Silicon
+          - runner: macos-14        # Apple Silicon (M1+)
             target: aarch64-apple-darwin
             arch: arm64
-          - runner: macos-13        # Intel
-            target: x86_64-apple-darwin
-            arch: x86_64
     runs-on: ${{ matrix.runner }}
 
     steps:
