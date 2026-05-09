@@ -113,6 +113,23 @@ jobs:
         # durchgereicht.
         run: choco install ninja -y --no-progress
 
+      - name: Disable ccache (unreliable with MSVC for whisper.cpp)
+        # windows-latest hat ccache vorinstalliert; CMake (whisper.cpp's
+        # GGML_CCACHE=ON Default) findet es via find_program und nutzt es
+        # als Compiler-Launcher. Bekanntes Problem: ccache + MSVC kann
+        # bei .obj-Erstellung silent failen — exit 0, aber File fehlt,
+        # was später als LNK1181 "cannot open input file" beim Linker
+        # auftaucht. Binary umbenennen, sodass find_program nichts findet.
+        shell: powershell
+        run: |
+          $ccache = Get-Command ccache -ErrorAction SilentlyContinue
+          if ($ccache) {
+            Rename-Item -Path $ccache.Source -NewName "$($ccache.Source).disabled" -Force
+            Write-Host "ccache disabled at $($ccache.Source)"
+          } else {
+            Write-Host "ccache not on PATH, nothing to do"
+          }
+
       - name: Enable Windows Long-Path support
         # whisper.cpp's nested vulkan-shaders-gen build erzeugt Pfade
         # >260 Zeichen (CMakeFiles\CMakeScratch\TryCompile-XXX\CMakeFiles\
