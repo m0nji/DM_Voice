@@ -69,3 +69,11 @@ In short:
 - No warranty, no liability — see LICENSE sections 15 and 16.
 
 © 2026 DM Apps.
+
+---
+
+<p align="center">
+  <a href="https://www.buymeacoffee.com/m0nji" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
+  </a>
+</p>
