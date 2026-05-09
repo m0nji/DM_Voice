@@ -113,6 +113,18 @@ jobs:
         # durchgereicht.
         run: choco install ninja -y --no-progress
 
+      - name: Exclude build paths from Windows Defender
+        # Defender's real-time scan lockt frisch erstellte .pdb/.obj-
+        # Dateien für Bruchteile von Sekunden — genau lang genug damit
+        # parallele cl.exe-Aufrufe von whisper.cpp's nested vulkan-
+        # shaders-gen-TryCompile mit "C1041: cannot open program
+        # database" abstürzen. Exclusion entfernt den Konflikt.
+        shell: powershell
+        run: |
+          Add-MpPreference -ExclusionPath "D:\a" -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionPath "$env:USERPROFILE\.cargo" -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionExtension ".pdb",".obj",".lib" -ErrorAction SilentlyContinue
+
       - name: Install Vulkan SDK
         # whisper-rs `vulkan` feature braucht Vulkan-Header + libs zur
         # Build-Zeit. LunarG-SDK liefert beides; cache spart ~3 min pro Run.
@@ -139,13 +151,16 @@ jobs:
           CMAKE_GENERATOR: "Ninja"
           CC: "cl"
           CXX: "cl"
-          # /Z7: Debug-Info direkt ins .obj einbetten statt in eine separate
-          # vc140.pdb. Damit verschwindet die PDB komplett und der bekannte
-          # "C1041: cannot open program database"-Race mit Ninja-Parallelism
-          # + Windows-Defender-Scan-Lock kann nicht mehr auftreten.
-          # /FS zusätzlich als Belt-and-suspenders, falls irgendein
-          # untergeordneter Build doch noch eine PDB anlegt.
+          # /Z7: Debug-Info ins .obj statt in eine PDB. /FS: synchrone
+          # PDB-Writes falls doch eine angelegt wird. Greift nur in cmake-
+          # Aufrufen die diese env-Var weiterreichen — manche nested
+          # ExternalProjects filtern sie raus, deshalb zusätzlich Defender-
+          # Exclusion und reduzierte Parallelität (s.u.).
           CL: "/Z7 /FS"
+          # CMake's eigener parallel-Build-Level. Setzt --parallel 1 und
+          # umgeht damit jedes File-Lock-Race im nested vulkan-shaders-gen
+          # ExternalProject. Kostet ~30-60s Build-Zeit, aber stabil.
+          CMAKE_BUILD_PARALLEL_LEVEL: "1"
           # Kein Code-Signing in CI (kein EV-Cert vorhanden). User sehen
           # SmartScreen-Warnung beim ersten Start.
         with:
