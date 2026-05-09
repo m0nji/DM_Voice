@@ -1,13 +1,12 @@
 name: Release
 
-# Builds DM Voice for macOS Apple Silicon and attaches the DMG to a
-# GitHub Release. Triggered by pushing a tag of the form `v*` (e.g.
-# `v0.2.0`) or manually from the Actions tab.
+# Builds DM Voice for macOS Apple Silicon (DMG) and Windows x86_64 (NSIS .exe).
+# Triggered by pushing a tag of the form `v*` (e.g. `v0.3.0`) or manually
+# from the Actions tab.
 #
-# Intel and Windows are intentionally not built: Intel-mac demand is
-# minimal in 2026 and queue times for `macos-13` runners are long;
-# Windows would need a port of the macOS-only code paths in
-# src-tauri/src (CGEvent → SendInput, AVFoundation → MMDevice, AX → UIA).
+# Intel-mac is not built (queue times on `macos-13` are long, demand is small).
+# Windows ARM64 is not built yet — see commented matrix entry below; needs
+# verified Vulkan SDK availability for aarch64-pc-windows-msvc.
 
 on:
   push:
@@ -56,11 +55,132 @@ jobs:
           releaseBody: |
             Automatischer Release-Build.
 
-            **macOS-Installation**: DMG öffnen, App nach `~/Applications` ziehen.
-            Beim ersten Start: Rechtsklick → "Öffnen" (App ist nicht von Apple
-            notarisiert), dann Mikrofon- und Bedienungshilfen-Permissions
-            erteilen.
+            **macOS (Apple Silicon)**: DMG öffnen, App nach `~/Applications`
+            ziehen. Beim ersten Start: Rechtsklick → "Öffnen" (App ist nicht
+            von Apple notarisiert), dann Mikrofon- und Bedienungshilfen-
+            Permissions erteilen.
+
+            **Windows (x86_64, GPU-beschleunigt via Vulkan)**: NSIS-Installer
+            ausführen. Beim ersten Start zeigt Windows SmartScreen
+            möglicherweise eine Warnung — "Weitere Informationen → Trotzdem
+            ausführen". GPU-Beschleunigung funktioniert auf NVIDIA, AMD und
+            Intel Arc/Xe out-of-the-box (Vulkan-Treiber sind im GPU-Treiber
+            enthalten).
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
+          projectPath: src-tauri
+
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest    # x86_64
+            target: x86_64-pc-windows-msvc
+            arch: x64
+          # ARM64 vorerst auskommentiert — Vulkan-SDK auf aarch64-windows
+          # noch nicht in allen LunarG-Versionen vollständig. Aktivieren
+          # sobald getestet.
+          # - runner: windows-11-arm
+          #   target: aarch64-pc-windows-msvc
+          #   arch: arm64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Setup MSVC environment
+        # vcvarsall env (CL, INCLUDE, LIB, PATH) für alle nachfolgenden
+        # Steps. Ninja-Build erkennt MSVC dann via cl.exe im PATH.
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Install Ninja
+        # whisper.cpp's Vulkan-Backend baut intern `vulkan-shaders-gen`
+        # als CMake ExternalProject. Mit dem Visual-Studio-Generator
+        # entstehen geschachtelte MSBuild-CustomBuild→cmake-Aufrufe, in
+        # denen die vcvarsall-Env vom inneren Sub-Process nicht erreicht
+        # wird (Compiler-Detection scheitert). Ninja baut flach: ein
+        # einziger cmake-Run, ein Ninja-Process, vcvars-Env wird sauber
+        # durchgereicht.
+        run: choco install ninja -y --no-progress
+
+      - name: Disable ccache (unreliable with MSVC for whisper.cpp)
+        # windows-latest hat ccache vorinstalliert; CMake (whisper.cpp's
+        # GGML_CCACHE=ON Default) findet es via find_program und nutzt es
+        # als Compiler-Launcher. Bekanntes Problem: ccache + MSVC kann
+        # bei .obj-Erstellung silent failen — exit 0, aber File fehlt,
+        # was später als LNK1181 "cannot open input file" beim Linker
+        # auftaucht. Binary umbenennen, sodass find_program nichts findet.
+        shell: powershell
+        run: |
+          $ccache = Get-Command ccache -ErrorAction SilentlyContinue
+          if ($ccache) {
+            Rename-Item -Path $ccache.Source -NewName "$($ccache.Source).disabled" -Force
+            Write-Host "ccache disabled at $($ccache.Source)"
+          } else {
+            Write-Host "ccache not on PATH, nothing to do"
+          }
+
+      - name: Enable Windows Long-Path support
+        # whisper.cpp's nested vulkan-shaders-gen build erzeugt Pfade
+        # >260 Zeichen (CMakeFiles\CMakeScratch\TryCompile-XXX\CMakeFiles\
+        # cmTC_XXX.dir\vc140.pdb). Ohne LongPathsEnabled kann cl.exe die
+        # PDB nicht öffnen ("C1041: cannot open program database").
+        shell: powershell
+        run: |
+          Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -Type DWord
+
+      - name: Install Vulkan SDK
+        # whisper-rs `vulkan` feature braucht Vulkan-Header + libs zur
+        # Build-Zeit. LunarG-SDK liefert beides; cache spart ~3 min pro Run.
+        uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          version: 1.3.290.0
+          cache: true
+
+      - name: Cache cargo registry & target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build & bundle (Tauri)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Ninja statt Visual Studio Generator: vermeidet die
+          # geschachtelten MSBuild-CustomBuild-Steps, die das nested
+          # ExternalProject (vulkan-shaders-gen) bei whisper.cpp's
+          # Vulkan-Backend zum Crashen brachten. cmake-rs liest
+          # CMAKE_GENERATOR aus dem Env, sodass sowohl outer (whisper-rs-sys)
+          # als auch inner (vulkan-shaders-gen) cmake-Aufrufe Ninja nutzen.
+          CMAKE_GENERATOR: "Ninja"
+          CC: "cl"
+          CXX: "cl"
+          # Kürzeres Target-Dir (D:\t statt
+          # D:\a\DM_Voice\DM_Voice\src-tauri\target) spart 57 Zeichen
+          # am whisper.cpp-Build-Pfad. Sonst sprengt das nested
+          # vulkan-shaders-gen-Build mit seinen TryCompile-Scratch-
+          # Verzeichnissen den Windows-MAX_PATH (260 Zeichen) — selbst
+          # mit LongPathsEnabled, weil cl.exe und CMake's nested Build
+          # das Long-Path-Manifest nicht durchgehend respektieren.
+          CARGO_TARGET_DIR: "D:\\t"
+          # /Z7 + /FS als zusätzliche Absicherung gegen PDB-Probleme.
+          CL: "/Z7 /FS"
+          # Kein Code-Signing in CI (kein EV-Cert vorhanden). User sehen
+          # SmartScreen-Warnung beim ersten Start.
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "DM Voice ${{ github.ref_name }}"
+          releaseDraft: false
+          prerelease: false
+          args: --target ${{ matrix.target }} --bundles nsis
           projectPath: src-tauri

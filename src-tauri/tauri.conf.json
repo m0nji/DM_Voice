@@ -1,6 +1,6 @@
 {
   "productName": "DM Voice",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "identifier": "de.dmvoice.app",
   "build": {
     "frontendDist": "../src"
@@ -43,6 +43,16 @@
     "macOS": {
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "13.0"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "languages": ["German", "English"],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser"
+      }
     }
   }
 }
