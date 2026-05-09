@@ -129,16 +129,25 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
                 .unwrap_or_default()
         };
         if !text.is_empty() {
-            if injector::inject_text(&text).is_err() {
-                let _ = injector::copy_to_clipboard(&text);
-                use tauri_plugin_notification::NotificationExt;
-                let _ = app
-                    .notification()
-                    .builder()
-                    .title("DM Voice")
-                    .body("Kein Textfeld aktiv — Text kopiert")
-                    .show();
-            }
+            // enigo calls TSMGetInputSourceProperty which requires the main thread.
+            // Marshal injection to the main thread and wait for it to complete.
+            let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+            let text_inject = text.clone();
+            let app_notify = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                if injector::inject_text(&text_inject).is_err() {
+                    let _ = injector::copy_to_clipboard(&text_inject);
+                    use tauri_plugin_notification::NotificationExt;
+                    let _ = app_notify
+                        .notification()
+                        .builder()
+                        .title("DM Voice")
+                        .body("Kein Textfeld aktiv — Text kopiert")
+                        .show();
+                }
+                let _ = tx.send(());
+            });
+            let _ = rx.await;
         }
         show_overlay(&app, "done");
         sleep(Duration::from_millis(400)).await;
@@ -233,6 +242,14 @@ fn main() {
             download_model,
         ])
         .setup(move |app| {
+            // Point whisper's Metal backend to the bundled ggml-metal.metal shader.
+            // ggml-metal.m checks GGML_METAL_PATH_RESOURCES before falling back to
+            // NSBundle lookup, which won't find files in subdirectories.
+            if let Ok(res_dir) = app.path().resource_dir() {
+                let metal_dir = res_dir.join("resources");
+                std::env::set_var("GGML_METAL_PATH_RESOURCES", metal_dir.to_string_lossy().as_ref());
+            }
+
             // Load transcriber if model is installed
             let model_name = state.config.lock().unwrap().model_name.clone();
             let model_info = models::list_models()
@@ -256,6 +273,8 @@ fn main() {
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
+                .icon_as_template(true)
+                .tooltip("DM Voice")
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(move |app, event| {
