@@ -76,4 +76,8 @@ In short:
   <a href="https://www.buymeacoffee.com/m0nji" target="_blank">
     <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
   </a>
+  &nbsp;&nbsp;
+  <a href="https://www.paypal.com/pool/9p2cITSKXm?sr=wccr" target="_blank">
+    <img src="https://www.paypalobjects.com/en_US/i/btn/btn_donate_LG.gif" alt="Donate via PayPal" height="50">
+  </a>
 </p>
