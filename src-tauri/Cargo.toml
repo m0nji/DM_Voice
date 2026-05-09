@@ -2,6 +2,10 @@
 name = "dm-voice"
 version = "0.2.1"
 edition = "2021"
+license = "GPL-3.0-or-later"
+authors = ["DM Apps"]
+description = "Push-to-Talk Speech-to-Text for macOS, powered by Whisper"
+repository = "https://github.com/m0nji/DM_Voice"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

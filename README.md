@@ -48,4 +48,14 @@ Mikrofon-TCC-Prompt stillschweigend bei lokalen Self-Signed Certs.
 
 ## Lizenz
 
-Privatprojekt — alle Rechte vorbehalten. © DM Apps
+DM Voice steht unter der **GNU General Public License v3.0 or later** (GPL-3.0+).
+Volltext siehe [LICENSE](LICENSE).
+
+Kurzfassung:
+- Du darfst die App nutzen, modifizieren und weitergeben — auch kommerziell.
+- Wenn du eine modifizierte Version weitergibst, musst du den vollständigen
+  Quellcode unter derselben (oder einer kompatiblen späteren) GPL-Lizenz mit
+  veröffentlichen. Closed-Source-Forks sind nicht erlaubt.
+- Keine Gewährleistung, keine Haftung — siehe LICENSE Sections 15 und 16.
+
+© 2026 DM Apps. Beiträge per Pull Request willkommen.
