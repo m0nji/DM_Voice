@@ -32,7 +32,9 @@
       "Bash(echo \"exit: $?\")",
       "Bash(cargo build *)",
       "Bash(cargo tauri *)",
-      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\")"
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\")",
+      "Bash(/Users/thomas/.cargo/bin/cargo build *)",
+      "Bash(/Users/thomas/.cargo/bin/cargo tauri *)"
     ]
   }
 }

@@ -201,10 +201,6 @@ fn on_shortcut_released(app: &AppHandle, state: &SharedState) {
 }
 
 fn register_shortcut(app: &AppHandle, shortcut: &str, state: SharedState) {
-    if shortcut == "MetaRight" || shortcut == "MetaLeft" {
-        start_meta_key_listener(app, state, shortcut == "MetaRight");
-        return;
-    }
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
     let app_clone = app.clone();
     let _ = app
@@ -213,28 +209,6 @@ fn register_shortcut(app: &AppHandle, shortcut: &str, state: SharedState) {
             ShortcutState::Pressed => on_shortcut_pressed(&app_clone, &state),
             ShortcutState::Released => on_shortcut_released(&app_clone, &state),
         });
-}
-
-fn start_meta_key_listener(app: &AppHandle, state: SharedState, right_side: bool) {
-    use rdev::{listen, Event, EventType, Key};
-    let target_key = if right_side { Key::MetaRight } else { Key::MetaLeft };
-    let app_press = app.clone();
-    let state_press = Arc::clone(&state);
-    let app_release = app.clone();
-    let state_release = Arc::clone(&state);
-    std::thread::spawn(move || {
-        let _ = listen(move |event: Event| {
-            match event.event_type {
-                EventType::KeyPress(k) if k == target_key => {
-                    on_shortcut_pressed(&app_press, &state_press);
-                }
-                EventType::KeyRelease(k) if k == target_key => {
-                    on_shortcut_released(&app_release, &state_release);
-                }
-                _ => {}
-            }
-        });
-    });
 }
 
 fn main() {
