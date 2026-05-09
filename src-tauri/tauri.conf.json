@@ -27,7 +27,9 @@
     },
     "security": {
       "csp": null
-    },
+    }
+  },
+  "bundle": {
     "macOS": {
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "13.0"
