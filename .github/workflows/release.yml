@@ -113,17 +113,14 @@ jobs:
         # durchgereicht.
         run: choco install ninja -y --no-progress
 
-      - name: Exclude build paths from Windows Defender
-        # Defender's real-time scan lockt frisch erstellte .pdb/.obj-
-        # Dateien für Bruchteile von Sekunden — genau lang genug damit
-        # parallele cl.exe-Aufrufe von whisper.cpp's nested vulkan-
-        # shaders-gen-TryCompile mit "C1041: cannot open program
-        # database" abstürzen. Exclusion entfernt den Konflikt.
+      - name: Enable Windows Long-Path support
+        # whisper.cpp's nested vulkan-shaders-gen build erzeugt Pfade
+        # >260 Zeichen (CMakeFiles\CMakeScratch\TryCompile-XXX\CMakeFiles\
+        # cmTC_XXX.dir\vc140.pdb). Ohne LongPathsEnabled kann cl.exe die
+        # PDB nicht öffnen ("C1041: cannot open program database").
         shell: powershell
         run: |
-          Add-MpPreference -ExclusionPath "D:\a" -ErrorAction SilentlyContinue
-          Add-MpPreference -ExclusionPath "$env:USERPROFILE\.cargo" -ErrorAction SilentlyContinue
-          Add-MpPreference -ExclusionExtension ".pdb",".obj",".lib" -ErrorAction SilentlyContinue
+          Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -Type DWord
 
       - name: Install Vulkan SDK
         # whisper-rs `vulkan` feature braucht Vulkan-Header + libs zur
@@ -151,16 +148,9 @@ jobs:
           CMAKE_GENERATOR: "Ninja"
           CC: "cl"
           CXX: "cl"
-          # /Z7: Debug-Info ins .obj statt in eine PDB. /FS: synchrone
-          # PDB-Writes falls doch eine angelegt wird. Greift nur in cmake-
-          # Aufrufen die diese env-Var weiterreichen — manche nested
-          # ExternalProjects filtern sie raus, deshalb zusätzlich Defender-
-          # Exclusion und reduzierte Parallelität (s.u.).
+          # /Z7 + /FS als zusätzliche Absicherung gegen PDB-Probleme,
+          # falls cl.exe den Long-Path nicht direkt verarbeitet.
           CL: "/Z7 /FS"
-          # CMake's eigener parallel-Build-Level. Setzt --parallel 1 und
-          # umgeht damit jedes File-Lock-Race im nested vulkan-shaders-gen
-          # ExternalProject. Kostet ~30-60s Build-Zeit, aber stabil.
-          CMAKE_BUILD_PARALLEL_LEVEL: "1"
           # Kein Code-Signing in CI (kein EV-Cert vorhanden). User sehen
           # SmartScreen-Warnung beim ersten Start.
         with:
