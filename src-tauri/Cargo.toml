@@ -1,6 +1,6 @@
 [package]
 name = "dm-voice"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 
 [build-dependencies]
@@ -10,6 +10,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-autostart = "2"
 whisper-rs = { version = "0.11", features = ["metal"] }
 cpal = "0.15"
 rubato = "0.15"

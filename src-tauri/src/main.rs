@@ -553,6 +553,18 @@ fn build_tray_menu(
         model_items.push(item);
     }
     let sep2 = PredefinedMenuItem::separator(app)?;
+    let settings_item =
+        MenuItem::with_id(app, "settings", "Einstellungen…", true, None::<&str>)?;
+    let autostart_enabled = autostart_is_enabled(app);
+    let autostart_item = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        "Beim Login starten",
+        true,
+        autostart_enabled,
+        None::<&str>,
+    )?;
+    let sep3 = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "quit", "DM Voice beenden", true, None::<&str>)?;
 
     let mut refs: Vec<&dyn IsMenuItem<tauri::Wry>> =
@@ -561,9 +573,52 @@ fn build_tray_menu(
         refs.push(it);
     }
     refs.push(&sep2);
+    refs.push(&settings_item);
+    refs.push(&autostart_item);
+    refs.push(&sep3);
     refs.push(&quit_item);
 
     Menu::with_items(app, &refs)
+}
+
+/// Show (or create) the settings window. Called from the tray menu's
+/// "Einstellungen…" item — the tray-icon click itself just opens the menu,
+/// matching macOS status-bar conventions.
+fn show_settings_window(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    } else {
+        let _ = tauri::WebviewWindowBuilder::new(
+            app,
+            "settings",
+            tauri::WebviewUrl::App("settings/index.html".into()),
+        )
+        .title("DM Voice")
+        .inner_size(300.0, 520.0)
+        .resizable(false)
+        .build();
+    }
+}
+
+/// Read the current autostart state. Plugin returns false on error, which is
+/// the right default for the checkmark.
+fn autostart_is_enabled(app: &AppHandle) -> bool {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+/// Toggle login-launch on/off. Logs the result so we see in dlog.log whether
+/// the LaunchAgent plist was actually written.
+fn autostart_toggle(app: &AppHandle) {
+    use tauri_plugin_autostart::ManagerExt;
+    let mgr = app.autolaunch();
+    let currently = mgr.is_enabled().unwrap_or(false);
+    let res = if currently { mgr.disable() } else { mgr.enable() };
+    match res {
+        Ok(()) => dlog!("autostart toggled: {} -> {}", currently, !currently),
+        Err(e) => dlog!("autostart toggle failed: {}", e),
+    }
 }
 
 fn rebuild_tray_menu(app: &AppHandle, state: &SharedState) {
@@ -592,6 +647,10 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(Arc::clone(&state))
         .invoke_handler(tauri::generate_handler![
             get_config,
@@ -633,8 +692,7 @@ fn main() {
             }
 
             // System tray
-            use tauri::tray::{TrayIconBuilder, TrayIconEvent};
-            let app_handle = app.handle().clone();
+            use tauri::tray::TrayIconBuilder;
             let state_for_menu = Arc::clone(&state);
 
             let tray_menu = build_tray_menu(app.handle(), &state.config.lock().unwrap())?;
@@ -649,11 +707,16 @@ fn main() {
                 .icon_as_template(true)
                 .tooltip("DM Voice")
                 .menu(&tray_menu)
-                .show_menu_on_left_click(false)
+                .show_menu_on_left_click(true)
                 .on_menu_event(move |app, event| {
                     let id = event.id().as_ref().to_string();
                     if id == "quit" {
                         app.exit(0);
+                    } else if id == "settings" {
+                        show_settings_window(app);
+                    } else if id == "autostart" {
+                        autostart_toggle(app);
+                        rebuild_tray_menu(app, &state_for_menu);
                     } else if let Some(model_name) = id.strip_prefix("model:") {
                         let app2 = app.clone();
                         let state2 = Arc::clone(&state_for_menu);
@@ -678,24 +741,6 @@ fn main() {
                                 rebuild_tray_menu(&app2, &state2);
                             }
                         });
-                    }
-                })
-                .on_tray_icon_event(move |_, event| {
-                    if let TrayIconEvent::Click { .. } = event {
-                        if let Some(w) = app_handle.get_webview_window("settings") {
-                            let _ = w.show();
-                            let _ = w.set_focus();
-                        } else {
-                            let _ = tauri::WebviewWindowBuilder::new(
-                                &app_handle,
-                                "settings",
-                                tauri::WebviewUrl::App("settings/index.html".into()),
-                            )
-                            .title("DM Voice")
-                            .inner_size(300.0, 520.0)
-                            .resizable(false)
-                            .build();
-                        }
                     }
                 })
                 .build(app)?;
