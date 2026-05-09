@@ -110,7 +110,6 @@ fn show_overlay(app: &AppHandle, state_name: &str) {
 
 fn hide_overlay(app: &AppHandle) {
     let _ = app.emit("recording-state", "idle");
-    std::thread::sleep(Duration::from_millis(400));
     if let Some(w) = app.get_webview_window("overlay") {
         let _ = w.hide();
     }
