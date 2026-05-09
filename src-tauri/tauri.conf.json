@@ -43,6 +43,16 @@
     "macOS": {
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "13.0"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "languages": ["German", "English"],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser"
+      }
     }
   }
 }

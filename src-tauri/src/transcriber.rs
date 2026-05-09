@@ -34,14 +34,16 @@ impl WhisperTranscriber {
         params.set_print_realtime(false);
         params.set_print_special(false);
         params.set_suppress_blank(true);
-        params.set_suppress_non_speech_tokens(true);
+        params.set_suppress_nst(true);
         state.full(params, audio)?;
-        let n = state.full_n_segments()?;
+        let n = state.full_n_segments();
         let mut text = String::new();
         for i in 0..n {
-            let seg = state.full_get_segment_text(i)?;
-            text.push_str(seg.trim());
-            text.push(' ');
+            if let Some(seg) = state.get_segment(i) {
+                let s = seg.to_str_lossy()?;
+                text.push_str(s.trim());
+                text.push(' ');
+            }
         }
         let text = text.trim().to_string();
         if is_known_silence_hallucination(&text) {

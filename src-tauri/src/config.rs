@@ -11,10 +11,20 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            shortcut: "Alt+Space".to_string(),
+            shortcut: default_shortcut().to_string(),
             model_name: "large-v3-turbo".to_string(),
         }
     }
+}
+
+// Plattform-spezifischer Default-Hotkey:
+//   macOS  → Alt+Space (Original-Default, im OS frei).
+//   Windows → Ctrl+Space (Alt+Space ist dort System-Shortcut für Fenstermenü).
+fn default_shortcut() -> &'static str {
+    #[cfg(target_os = "macos")]
+    { "Alt+Space" }
+    #[cfg(not(target_os = "macos"))]
+    { "Ctrl+Space" }
 }
 
 pub fn config_path() -> PathBuf {
