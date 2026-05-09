@@ -148,8 +148,15 @@ jobs:
           CMAKE_GENERATOR: "Ninja"
           CC: "cl"
           CXX: "cl"
-          # /Z7 + /FS als zusätzliche Absicherung gegen PDB-Probleme,
-          # falls cl.exe den Long-Path nicht direkt verarbeitet.
+          # Kürzeres Target-Dir (D:\t statt
+          # D:\a\DM_Voice\DM_Voice\src-tauri\target) spart 57 Zeichen
+          # am whisper.cpp-Build-Pfad. Sonst sprengt das nested
+          # vulkan-shaders-gen-Build mit seinen TryCompile-Scratch-
+          # Verzeichnissen den Windows-MAX_PATH (260 Zeichen) — selbst
+          # mit LongPathsEnabled, weil cl.exe und CMake's nested Build
+          # das Long-Path-Manifest nicht durchgehend respektieren.
+          CARGO_TARGET_DIR: "D:\\t"
+          # /Z7 + /FS als zusätzliche Absicherung gegen PDB-Probleme.
           CL: "/Z7 /FS"
           # Kein Code-Signing in CI (kein EV-Cert vorhanden). User sehen
           # SmartScreen-Warnung beim ersten Start.
