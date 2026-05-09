@@ -68,4 +68,4 @@ In short:
   Closed-source forks are not permitted.
 - No warranty, no liability — see LICENSE sections 15 and 16.
 
-© 2026 DM Apps. Pull requests welcome.
+© 2026 DM Apps.
