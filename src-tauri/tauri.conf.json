@@ -39,7 +39,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": ["resources/ggml-metal.metal"],
+    "resources": ["resources/ggml-metal.metal", "Assets.car"],
     "macOS": {
       "entitlements": "entitlements.plist",
       "minimumSystemVersion": "13.0"
