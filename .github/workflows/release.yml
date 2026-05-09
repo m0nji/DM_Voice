@@ -96,6 +96,16 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Setup MSVC environment
+        # whisper.cpp's Vulkan-Backend baut intern `vulkan-shaders-gen` als
+        # ExternalProject mit eigenem CMake-Run. Dieser nested Build findet
+        # CMAKE_C_COMPILER nicht, weil der vcvarsall-Env nicht im Shell-Scope
+        # ist. ilammy/msvc-dev-cmd exportiert CL, INCLUDE, LIB etc. ins
+        # Workflow-Env, sodass auch der innere Build MSVC erkennt.
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
       - name: Install Vulkan SDK
         # whisper-rs `vulkan` feature braucht Vulkan-Header + libs zur
         # Build-Zeit. LunarG-SDK liefert beides; cache spart ~3 min pro Run.
