@@ -46,7 +46,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # No code signing in CI: the local self-signed cert lives only on
+          # Tauri-Updater-Signatur: der Private Key signiert die
+          # Update-Artefakte (.app.tar.gz.sig). Public Key liegt in
+          # tauri.conf.json; ohne diese Env-Vars schlägt der Build fehl,
+          # weil bundle.createUpdaterArtifacts: true gesetzt ist.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # No OS code signing in CI: the local self-signed cert lives only on
           # your machine. The DMG is unsigned; users will need to right-click
           # → Open the first time, or run `xattr -dr com.apple.quarantine`.
         with:
@@ -66,6 +72,10 @@ jobs:
             ausführen". GPU-Beschleunigung funktioniert auf NVIDIA, AMD und
             Intel Arc/Xe out-of-the-box (Vulkan-Treiber sind im GPU-Treiber
             enthalten).
+
+            Bestehende Installationen aktualisieren sich künftig
+            automatisch über den eingebauten Updater (Tray → "Auf
+            Updates prüfen…").
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
@@ -175,12 +185,70 @@ jobs:
           CARGO_TARGET_DIR: "D:\\t"
           # /Z7 + /FS als zusätzliche Absicherung gegen PDB-Probleme.
           CL: "/Z7 /FS"
-          # Kein Code-Signing in CI (kein EV-Cert vorhanden). User sehen
+          # Tauri-Updater-Signatur — siehe build-macos für Details.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Kein OS-Code-Signing in CI (kein EV-Cert vorhanden). User sehen
           # SmartScreen-Warnung beim ersten Start.
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "DM Voice ${{ github.ref_name }}"
           releaseDraft: false
           prerelease: false
-          args: --target ${{ matrix.target }} --bundles nsis
+          args: --target ${{ matrix.target }} --bundles nsis updater
           projectPath: src-tauri
+
+  # Final job: nach beiden Builds aus den .sig-Dateien das latest.json
+  # generieren und an den Release hängen. Tauri-Updater im Client zieht
+  # genau diese Datei vom releases/latest/download/-Endpoint.
+  publish-updater-manifest:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate and upload latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p sigs
+          # Alle .sig-Dateien des Releases herunterladen
+          gh release download "$TAG" --repo "$REPO" --pattern '*.sig' --dir sigs
+          ls -la sigs
+
+          # Asset-Namen vom Release lesen (für die Download-URLs)
+          assets_json=$(gh release view "$TAG" --repo "$REPO" --json assets)
+          mac_asset=$(echo "$assets_json" | jq -r '.assets[].name | select(test("aarch64.app.tar.gz$"))')
+          win_asset=$(echo "$assets_json" | jq -r '.assets[].name | select(test("x64-setup\\.exe$"))')
+
+          mac_sig=$(cat "sigs/${mac_asset}.sig" 2>/dev/null || echo "")
+          win_sig=$(cat "sigs/${win_asset}.sig" 2>/dev/null || echo "")
+
+          version="${TAG#v}"
+          base_url="https://github.com/${REPO}/releases/download/${TAG}"
+          notes=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+          pub_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          jq -n \
+            --arg version "$version" \
+            --arg notes "$notes" \
+            --arg pub_date "$pub_date" \
+            --arg mac_url "${base_url}/${mac_asset}" \
+            --arg mac_sig "$mac_sig" \
+            --arg win_url "${base_url}/${win_asset}" \
+            --arg win_sig "$win_sig" \
+            '{
+              version: $version,
+              notes: $notes,
+              pub_date: $pub_date,
+              platforms: (
+                ({} +
+                  (if $mac_sig != "" then {"darwin-aarch64": {signature: $mac_sig, url: $mac_url}} else {} end) +
+                  (if $win_sig != "" then {"windows-x86_64": {signature: $win_sig, url: $win_url}} else {} end)
+                )
+              )
+            }' > latest.json
+
+          cat latest.json
+          gh release upload "$TAG" latest.json --repo "$REPO" --clobber

@@ -47,6 +47,19 @@
   .perm-status.not_determined { background: rgba(255,159,10,0.18); color: #ff9f0a; }
   .perm-status.restricted { background: rgba(255,159,10,0.18); color: #ff9f0a; }
   .perm-status.unknown { background: rgba(142,142,147,0.25); color: #aeaeb2; }
+  .update-row {
+    background: #2c2c2e; border-radius: 6px; padding: 10px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .update-line { display: flex; align-items: center; gap: 8px; }
+  .update-version { flex: 1; font-weight: 500; }
+  .update-meta { font-size: 11px; color: #888; }
+  .update-status.available { color: #30d158; font-weight: 500; }
+  .update-status.error { color: #ff453a; }
+  .update-notes {
+    font-size: 11px; color: #aeaeb2; max-height: 100px; overflow-y: auto;
+    background: #1e1e1e; border-radius: 4px; padding: 6px 8px; white-space: pre-wrap;
+  }
 </style>
 </head>
 <body>
@@ -76,6 +89,25 @@
 <div class="field">
   <label>Modelle</label>
   <div id="model-list"></div>
+</div>
+
+<div class="field">
+  <label>Updates</label>
+  <div class="update-row">
+    <div class="update-line">
+      <div class="update-version" id="update-version">Version …</div>
+      <button class="subtle" id="update-check-btn">Auf Updates prüfen</button>
+    </div>
+    <div class="update-meta" id="update-status">Noch nicht geprüft.</div>
+    <div class="update-notes" id="update-notes" style="display:none"></div>
+    <div class="update-line" id="update-install-line" style="display:none">
+      <div class="update-meta" id="update-progress-text" style="flex:1">Bereit.</div>
+      <button id="update-install-btn">Installieren &amp; neu starten</button>
+    </div>
+    <div class="progress" id="update-progress" style="display:none">
+      <div class="progress-bar" id="update-progress-bar"></div>
+    </div>
+  </div>
 </div>
 
 <script src="settings.js"></script>

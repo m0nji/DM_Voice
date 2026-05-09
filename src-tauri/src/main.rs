@@ -9,6 +9,7 @@ mod models;
 mod permissions;
 mod shortcut;
 mod transcriber;
+mod updater;
 
 use audio::{audio_stats, AudioCapture, TARGET_SAMPLE_RATE};
 use config::{load_config, save_config, AppConfig};
@@ -16,6 +17,7 @@ use models::ModelInfo;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_updater::UpdaterExt;
 use tokio::time::sleep;
 use transcriber::WhisperTranscriber;
 
@@ -58,6 +60,10 @@ struct AppState {
     // Captured in on_shortcut_pressed so CGEventPostToPid targets the right window
     // even if showing the overlay briefly activates DM Voice itself.
     frontmost_pid: Mutex<Option<i32>>,
+    // Mirrors `SharedUpdateState` (also exposed as a Tauri-managed state for
+    // updater commands). Held here so `rebuild_tray_menu` can read it without
+    // looking up the managed state.
+    update: updater::SharedUpdateState,
 }
 
 type SharedState = Arc<AppState>;
@@ -527,6 +533,7 @@ fn register_shortcut(app: &AppHandle, shortcut: &str, state: SharedState) {
 fn build_tray_menu(
     app: &AppHandle,
     cfg: &AppConfig,
+    update: &updater::UpdateState,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 
@@ -538,6 +545,31 @@ fn build_tray_menu(
         None::<&str>,
     )?;
     let sep1 = PredefinedMenuItem::separator(app)?;
+
+    // Update items: only the "install" variant is shown when an update is
+    // pending. The "check" variant is always shown so the user can poll
+    // manually. Both live near the top so they are easy to spot.
+    let update_install: Option<MenuItem<tauri::Wry>> =
+        if let Some(v) = &update.latest_version {
+            Some(MenuItem::with_id(
+                app,
+                "update_install",
+                format!("Update auf v{} installieren", v),
+                !update.installing,
+                None::<&str>,
+            )?)
+        } else {
+            None
+        };
+    let update_check = MenuItem::with_id(
+        app,
+        "update_check",
+        "Auf Updates prüfen…",
+        !update.installing,
+        None::<&str>,
+    )?;
+    let sep_update = PredefinedMenuItem::separator(app)?;
+
     let model_header = MenuItem::with_id(app, "model_header", "Modell", false, None::<&str>)?;
 
     let mut model_items: Vec<CheckMenuItem<tauri::Wry>> = Vec::new();
@@ -567,8 +599,13 @@ fn build_tray_menu(
     let sep3 = PredefinedMenuItem::separator(app)?;
     let quit_item = MenuItem::with_id(app, "quit", "DM Voice beenden", true, None::<&str>)?;
 
-    let mut refs: Vec<&dyn IsMenuItem<tauri::Wry>> =
-        vec![&header, &sep1, &model_header];
+    let mut refs: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&header, &sep1];
+    if let Some(it) = update_install.as_ref() {
+        refs.push(it);
+    }
+    refs.push(&update_check);
+    refs.push(&sep_update);
+    refs.push(&model_header);
     for it in &model_items {
         refs.push(it);
     }
@@ -595,7 +632,7 @@ fn show_settings_window(app: &AppHandle) {
             tauri::WebviewUrl::App("settings/index.html".into()),
         )
         .title("DM Voice")
-        .inner_size(300.0, 520.0)
+        .inner_size(300.0, 680.0)
         .resizable(false)
         .build();
     }
@@ -623,7 +660,8 @@ fn autostart_toggle(app: &AppHandle) {
 
 fn rebuild_tray_menu(app: &AppHandle, state: &SharedState) {
     let cfg = state.config.lock().unwrap().clone();
-    if let Ok(menu) = build_tray_menu(app, &cfg) {
+    let update = state.update.lock().unwrap().clone();
+    if let Ok(menu) = build_tray_menu(app, &cfg, &update) {
         if let Some(tray) = app.tray_by_id("main") {
             let _ = tray.set_menu(Some(menu));
         }
@@ -635,6 +673,8 @@ fn main() {
     dlog!("dm-voice starting; pid={}", std::process::id());
     permissions::request_all();
     let cfg = load_config();
+    let update_state: updater::SharedUpdateState =
+        Arc::new(Mutex::new(updater::UpdateState::new()));
     let state: SharedState = Arc::new(AppState {
         audio: Mutex::new(AudioGuard::new()),
         recording_start: Mutex::new(None),
@@ -642,6 +682,7 @@ fn main() {
         config: Mutex::new(cfg.clone()),
         transcriber: Mutex::new(None),
         frontmost_pid: Mutex::new(None),
+        update: Arc::clone(&update_state),
     });
 
     tauri::Builder::default()
@@ -651,7 +692,9 @@ fn main() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Arc::clone(&state))
+        .manage(Arc::clone(&update_state))
         .invoke_handler(tauri::generate_handler![
             get_config,
             set_shortcut,
@@ -662,6 +705,9 @@ fn main() {
             get_permissions,
             request_permissions,
             open_privacy_pane,
+            updater::check_for_updates,
+            updater::get_update_state,
+            updater::install_update,
         ])
         .setup(move |app| {
             if let Some(w) = app.get_webview_window("overlay") {
@@ -695,7 +741,11 @@ fn main() {
             use tauri::tray::TrayIconBuilder;
             let state_for_menu = Arc::clone(&state);
 
-            let tray_menu = build_tray_menu(app.handle(), &state.config.lock().unwrap())?;
+            let tray_menu = build_tray_menu(
+                app.handle(),
+                &state.config.lock().unwrap(),
+                &state.update.lock().unwrap(),
+            )?;
 
             let tray_icon_img = tauri::image::Image::from_path(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("icons/tray-icon.png"),
@@ -717,6 +767,74 @@ fn main() {
                     } else if id == "autostart" {
                         autostart_toggle(app);
                         rebuild_tray_menu(app, &state_for_menu);
+                    } else if id == "update_check" {
+                        let app2 = app.clone();
+                        let state2 = Arc::clone(&state_for_menu);
+                        tauri::async_runtime::spawn(async move {
+                            let _ = updater::run_check(
+                                app2.clone(),
+                                Arc::clone(&state2.update),
+                            )
+                            .await;
+                            rebuild_tray_menu(&app2, &state2);
+                        });
+                    } else if id == "update_install" {
+                        let app2 = app.clone();
+                        let state2 = Arc::clone(&state_for_menu);
+                        tauri::async_runtime::spawn(async move {
+                            let updater_inst = match app2.updater() {
+                                Ok(u) => u,
+                                Err(e) => {
+                                    dlog!("[updater] menu: {}", e);
+                                    return;
+                                }
+                            };
+                            let update = match updater_inst.check().await {
+                                Ok(Some(u)) => u,
+                                Ok(None) => {
+                                    dlog!("[updater] menu: no update");
+                                    return;
+                                }
+                                Err(e) => {
+                                    dlog!("[updater] menu check err: {}", e);
+                                    return;
+                                }
+                            };
+                            {
+                                let mut s = state2.update.lock().unwrap();
+                                s.installing = true;
+                            }
+                            rebuild_tray_menu(&app2, &state2);
+                            let downloaded = Arc::new(Mutex::new(0u64));
+                            let dl_chunk = Arc::clone(&downloaded);
+                            let app3 = app2.clone();
+                            let result = update
+                                .download_and_install(
+                                    move |chunk_length, content_length| {
+                                        let mut d = dl_chunk.lock().unwrap();
+                                        *d += chunk_length as u64;
+                                        let _ = app3.emit(
+                                            "update-progress",
+                                            serde_json::json!({
+                                                "downloaded": *d,
+                                                "total": content_length,
+                                            }),
+                                        );
+                                    },
+                                    || {
+                                        dlog!("[updater] menu: download finished");
+                                    },
+                                )
+                                .await;
+                            {
+                                let mut s = state2.update.lock().unwrap();
+                                s.installing = false;
+                            }
+                            match result {
+                                Ok(()) => app2.restart(),
+                                Err(e) => dlog!("[updater] menu install err: {}", e),
+                            }
+                        });
                     } else if let Some(model_name) = id.strip_prefix("model:") {
                         let app2 = app.clone();
                         let state2 = Arc::clone(&state_for_menu);
@@ -748,6 +866,35 @@ fn main() {
             // Register global shortcut
             let shortcut = state.config.lock().unwrap().shortcut.clone();
             register_shortcut(app.handle(), &shortcut, Arc::clone(&state));
+
+            // Background update check ~30s after start. When an update is
+            // found, the tray menu rebuild adds the "Install update" item and
+            // a notification fires.
+            let app_for_update = app.handle().clone();
+            let state_for_update = Arc::clone(&state);
+            let update_state_for_check = Arc::clone(&state.update);
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                let snap = updater::run_check(
+                    app_for_update.clone(),
+                    update_state_for_check,
+                )
+                .await;
+                if snap.update_available() {
+                    rebuild_tray_menu(&app_for_update, &state_for_update);
+                    use tauri_plugin_notification::NotificationExt;
+                    let v = snap.latest_version.unwrap_or_default();
+                    let _ = app_for_update
+                        .notification()
+                        .builder()
+                        .title("DM Voice — Update verfügbar")
+                        .body(format!(
+                            "Version {} ist bereit zum Installieren.",
+                            v
+                        ))
+                        .show();
+                }
+            });
 
             // Auto-download default model if not installed
             let default_model = models::MODELS

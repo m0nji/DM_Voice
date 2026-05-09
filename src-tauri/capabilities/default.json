@@ -10,6 +10,7 @@
     "core:window:default",
     "core:app:default",
     "global-shortcut:default",
-    "notification:default"
+    "notification:default",
+    "updater:default"
   ]
 }

@@ -162,3 +162,108 @@ function loadPermissions() {
 loadPermissions();
 // Re-poll periodically so the badge updates after the user toggles in System Settings
 setInterval(loadPermissions, 2000);
+
+// --- Updates ---
+const updateVersionEl   = document.getElementById('update-version');
+const updateStatusEl    = document.getElementById('update-status');
+const updateNotesEl     = document.getElementById('update-notes');
+const updateInstallLine = document.getElementById('update-install-line');
+const updateInstallBtn  = document.getElementById('update-install-btn');
+const updateCheckBtn    = document.getElementById('update-check-btn');
+const updateProgress    = document.getElementById('update-progress');
+const updateProgressBar = document.getElementById('update-progress-bar');
+const updateProgressTxt = document.getElementById('update-progress-text');
+
+function fmtTime(unix) {
+  if (!unix) return null;
+  const d = new Date(unix * 1000);
+  return d.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function renderUpdateState(s) {
+  updateVersionEl.textContent = `Version ${s.current_version}`;
+  if (s.installing) {
+    updateStatusEl.textContent = 'Installation läuft…';
+    updateStatusEl.className = 'update-meta';
+    updateCheckBtn.disabled = true;
+    updateInstallBtn.disabled = true;
+    return;
+  }
+  updateCheckBtn.disabled = false;
+  updateInstallBtn.disabled = false;
+
+  if (s.last_error) {
+    updateStatusEl.textContent = `Fehler: ${s.last_error}`;
+    updateStatusEl.className = 'update-meta update-status error';
+    updateNotesEl.style.display = 'none';
+    updateInstallLine.style.display = 'none';
+    return;
+  }
+
+  if (s.latest_version) {
+    updateStatusEl.textContent = `Update verfügbar: v${s.latest_version}`;
+    updateStatusEl.className = 'update-meta update-status available';
+    if (s.notes && s.notes.trim()) {
+      updateNotesEl.textContent = s.notes.trim();
+      updateNotesEl.style.display = 'block';
+    } else {
+      updateNotesEl.style.display = 'none';
+    }
+    updateInstallLine.style.display = 'flex';
+  } else {
+    updateInstallLine.style.display = 'none';
+    updateNotesEl.style.display = 'none';
+    const when = fmtTime(s.last_check_unix);
+    updateStatusEl.textContent = when
+      ? `Aktuell — letzter Check: ${when}`
+      : 'Noch nicht geprüft.';
+    updateStatusEl.className = 'update-meta';
+  }
+}
+
+function loadUpdateState() {
+  invoke('get_update_state').then(renderUpdateState);
+}
+
+updateCheckBtn.addEventListener('click', () => {
+  updateCheckBtn.disabled = true;
+  updateStatusEl.textContent = 'Prüfe…';
+  updateStatusEl.className = 'update-meta';
+  invoke('check_for_updates')
+    .then(renderUpdateState)
+    .catch(err => {
+      updateStatusEl.textContent = `Fehler: ${err}`;
+      updateStatusEl.className = 'update-meta update-status error';
+    })
+    .finally(() => { updateCheckBtn.disabled = false; });
+});
+
+updateInstallBtn.addEventListener('click', () => {
+  updateInstallBtn.disabled = true;
+  updateProgress.style.display = 'block';
+  updateProgressBar.style.width = '0%';
+  updateProgressTxt.textContent = 'Lade…';
+  invoke('install_update').catch(err => {
+    updateProgressTxt.textContent = `Fehler: ${err}`;
+    updateInstallBtn.disabled = false;
+  });
+});
+
+listen('update-progress', (e) => {
+  const { downloaded, total } = e.payload;
+  if (total) {
+    const pct = (downloaded / total) * 100;
+    updateProgressBar.style.width = pct.toFixed(1) + '%';
+    updateProgressTxt.textContent =
+      `Lade ${(downloaded / 1_000_000).toFixed(1)} / ${(total / 1_000_000).toFixed(1)} MB`;
+  } else {
+    updateProgressTxt.textContent =
+      `Lade ${(downloaded / 1_000_000).toFixed(1)} MB`;
+  }
+});
+
+listen('update-checked', (e) => {
+  renderUpdateState(e.payload);
+});
+
+loadUpdateState();
