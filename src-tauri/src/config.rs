@@ -11,7 +11,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            shortcut: "Alt+Space".to_string(),
+            shortcut: "MetaRight".to_string(),
             model_name: "large-v3-turbo".to_string(),
         }
     }

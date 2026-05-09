@@ -1,0 +1,6 @@
+{"type":"server-started","port":65038,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:65038","screen_dir":"/Users/thomas/Projects/DM-Voice/.superpowers/brainstorm/75573-1778281115/content","state_dir":"/Users/thomas/Projects/DM-Voice/.superpowers/brainstorm/75573-1778281115/state"}
+{"type":"screen-added","file":"/Users/thomas/Projects/DM-Voice/.superpowers/brainstorm/75573-1778281115/content/waiting.html"}
+{"type":"screen-added","file":"/Users/thomas/Projects/DM-Voice/.superpowers/brainstorm/75573-1778281115/content/overlay-position.html"}
+{"type":"screen-added","file":"/Users/thomas/Projects/DM-Voice/.superpowers/brainstorm/75573-1778281115/content/settings-access.html"}
+{"source":"user-event","type":"click","text":"DM Voice — Einstellungen\n        \n        \n          \n            SHORTCUT\n            ⌥ Space\n          \n          \n            MODELL\n            large-v3-turbo ▾\n          \n        \n      \n    \n    \n      Kleines Einstellungs-Fenster\n      Klick aufs Tray-Icon öffnet ein kleines natives Fenster mit Shortcut-Recorder und Modell-Dropdown.","choice":"settings-window","id":null,"timestamp":1778281822422}
+{"type":"server-stopped","reason":"idle timeout"}

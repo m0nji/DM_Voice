@@ -116,7 +116,7 @@ fn hide_overlay(app: &AppHandle) {
 }
 
 fn trigger_transcription(app: AppHandle, state: SharedState) {
-    tokio::spawn(async move {
+    tauri::async_runtime::spawn(async move {
         let buffer = {
             let mut audio = state.audio.lock().unwrap();
             audio.stop_and_get_buffer().unwrap_or_default()
@@ -146,65 +146,95 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
     });
 }
 
+fn on_shortcut_pressed(app: &AppHandle, state: &SharedState) {
+    if state.recording_start.lock().unwrap().is_some() {
+        return;
+    }
+    let mut audio = state.audio.lock().unwrap();
+    if audio.start().is_err() {
+        return;
+    }
+    *state.recording_start.lock().unwrap() = Some(Instant::now());
+    *state.auto_stop.lock().unwrap() = false;
+    show_overlay(app, "recording");
+    drop(audio);
+
+    let app2 = app.clone();
+    let state2 = Arc::clone(state);
+    tauri::async_runtime::spawn(async move {
+        loop {
+            sleep(Duration::from_millis(50)).await;
+            let elapsed = {
+                let start = state2.recording_start.lock().unwrap();
+                start.map(|s| s.elapsed())
+            };
+            match elapsed {
+                None => break,
+                Some(d) if d > Duration::from_secs(30) => {
+                    *state2.recording_start.lock().unwrap() = None;
+                    *state2.auto_stop.lock().unwrap() = true;
+                    trigger_transcription(app2.clone(), Arc::clone(&state2));
+                    break;
+                }
+                _ => {}
+            }
+            let amp = state2.audio.lock().unwrap().current_amplitude();
+            let _ = app2.emit("amplitude", amp);
+        }
+    });
+}
+
+fn on_shortcut_released(app: &AppHandle, state: &SharedState) {
+    let start = state.recording_start.lock().unwrap().take();
+    if *state.auto_stop.lock().unwrap() {
+        return;
+    }
+    let elapsed = start.map(|s| s.elapsed()).unwrap_or_default();
+    if elapsed < Duration::from_millis(300) {
+        let mut audio = state.audio.lock().unwrap();
+        let _ = audio.stop_and_get_buffer();
+        drop(audio);
+        hide_overlay(app);
+        return;
+    }
+    trigger_transcription(app.clone(), Arc::clone(state));
+}
+
 fn register_shortcut(app: &AppHandle, shortcut: &str, state: SharedState) {
+    if shortcut == "MetaRight" || shortcut == "MetaLeft" {
+        start_meta_key_listener(app, state, shortcut == "MetaRight");
+        return;
+    }
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
     let app_clone = app.clone();
     let _ = app
         .global_shortcut()
         .on_shortcut(shortcut, move |_, _, event| match event.state() {
-            ShortcutState::Pressed => {
-                if state.recording_start.lock().unwrap().is_some() {
-                    return;
-                }
-                let mut audio = state.audio.lock().unwrap();
-                if audio.start().is_err() {
-                    return;
-                }
-                *state.recording_start.lock().unwrap() = Some(Instant::now());
-                *state.auto_stop.lock().unwrap() = false;
-                show_overlay(&app_clone, "recording");
-                drop(audio);
+            ShortcutState::Pressed => on_shortcut_pressed(&app_clone, &state),
+            ShortcutState::Released => on_shortcut_released(&app_clone, &state),
+        });
+}
 
-                let app2 = app_clone.clone();
-                let state2 = Arc::clone(&state);
-                tokio::spawn(async move {
-                    loop {
-                        sleep(Duration::from_millis(50)).await;
-                        let elapsed = {
-                            let start = state2.recording_start.lock().unwrap();
-                            start.map(|s| s.elapsed())
-                        };
-                        match elapsed {
-                            None => break,
-                            Some(d) if d > Duration::from_secs(30) => {
-                                *state2.recording_start.lock().unwrap() = None;
-                                *state2.auto_stop.lock().unwrap() = true;
-                                trigger_transcription(app2.clone(), Arc::clone(&state2));
-                                break;
-                            }
-                            _ => {}
-                        }
-                        let amp = state2.audio.lock().unwrap().current_amplitude();
-                        let _ = app2.emit("amplitude", amp);
-                    }
-                });
-            }
-            ShortcutState::Released => {
-                let start = state.recording_start.lock().unwrap().take();
-                if *state.auto_stop.lock().unwrap() {
-                    return;
+fn start_meta_key_listener(app: &AppHandle, state: SharedState, right_side: bool) {
+    use rdev::{listen, Event, EventType, Key};
+    let target_key = if right_side { Key::MetaRight } else { Key::MetaLeft };
+    let app_press = app.clone();
+    let state_press = Arc::clone(&state);
+    let app_release = app.clone();
+    let state_release = Arc::clone(&state);
+    std::thread::spawn(move || {
+        let _ = listen(move |event: Event| {
+            match event.event_type {
+                EventType::KeyPress(k) if k == target_key => {
+                    on_shortcut_pressed(&app_press, &state_press);
                 }
-                let elapsed = start.map(|s| s.elapsed()).unwrap_or_default();
-                if elapsed < Duration::from_millis(300) {
-                    let mut audio = state.audio.lock().unwrap();
-                    let _ = audio.stop_and_get_buffer();
-                    drop(audio);
-                    hide_overlay(&app_clone);
-                    return;
+                EventType::KeyRelease(k) if k == target_key => {
+                    on_shortcut_released(&app_release, &state_release);
                 }
-                trigger_transcription(app_clone.clone(), Arc::clone(&state));
+                _ => {}
             }
         });
+    });
 }
 
 fn main() {
@@ -292,7 +322,7 @@ fn main() {
                 let app_handle2 = app.handle().clone();
                 let filename = default_model.1.to_string();
                 let state2 = Arc::clone(&state);
-                tokio::spawn(async move {
+                tauri::async_runtime::spawn(async move {
                     let name = "large-v3-turbo".to_string();
                     let _ = models::download_model(&filename, move |p| {
                         let _ = app_handle2.emit(

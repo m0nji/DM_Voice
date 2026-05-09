@@ -1,4 +1,9 @@
+const BARE_KEYS: &[&str] = &["MetaRight", "MetaLeft"];
+
 pub fn is_valid_shortcut(shortcut: &str) -> bool {
+    if BARE_KEYS.contains(&shortcut) {
+        return true;
+    }
     let parts: Vec<&str> = shortcut.split('+').collect();
     let modifiers = ["Alt", "Ctrl", "Super", "Shift"];
     let has_modifier = parts.iter().any(|p| modifiers.contains(p));
@@ -13,6 +18,11 @@ mod tests {
     #[test]
     fn alt_space_is_valid() {
         assert!(is_valid_shortcut("Alt+Space"));
+    }
+
+    #[test]
+    fn meta_right_is_valid() {
+        assert!(is_valid_shortcut("MetaRight"));
     }
 
     #[test]

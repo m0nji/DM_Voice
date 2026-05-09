@@ -1,0 +1,58 @@
+<h2>Wie öffnet man die Einstellungen?</h2>
+<p class="subtitle">Zugang zu Shortcut-Konfiguration und Modell-Auswahl</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="tray-menu" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;border-radius:8px;padding:16px;min-height:160px;">
+      <!-- Menubar with tray icon -->
+      <div style="background:#161b22;border-radius:6px;padding:5px 12px;display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="color:#8b949e;font-size:10px;">●●●</span>
+        <div style="width:18px;height:18px;background:#e85d04;border-radius:3px;display:flex;align-items:center;justify-content:center;">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="white"><rect x="3" y="6" width="2" height="12" rx="1"/><rect x="7" y="9" width="2" height="6" rx="1"/><rect x="11" y="4" width="2" height="16" rx="1"/><rect x="15" y="9" width="2" height="6" rx="1"/><rect x="19" y="6" width="2" height="12" rx="1"/></svg>
+        </div>
+      </div>
+      <!-- Dropdown menu -->
+      <div style="background:#1c2128;border-radius:6px;padding:6px 0;font-size:11px;color:#e6edf3;width:180px;margin-left:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+        <div style="padding:5px 14px;color:#8b949e;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;">DM Voice</div>
+        <div style="padding:5px 14px;border-top:1px solid #30363d;margin-top:2px;">⌨️ Shortcut: <strong>⌥Space</strong></div>
+        <div style="padding:5px 14px;">🧠 Modell: <strong>large-v3-turbo</strong></div>
+        <div style="padding:5px 14px;border-top:1px solid #30363d;margin-top:2px;color:#8b949e;">Einstellungen…</div>
+        <div style="padding:5px 14px;color:#8b949e;">Beenden</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Menüleisten-Icon</h3>
+      <p>Klick aufs Tray-Icon öffnet ein Dropdown direkt in der Menüleiste. Kompakt, immer erreichbar, kein extra Fenster.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="settings-window" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;border-radius:8px;padding:16px;min-height:160px;">
+      <!-- Small settings window -->
+      <div style="background:#1c2128;border-radius:8px;padding:0;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.6);max-width:220px;margin:0 auto;">
+        <div style="background:#161b22;padding:8px 12px;display:flex;align-items:center;gap:6px;">
+          <div style="width:8px;height:8px;background:#ff5f57;border-radius:50%;"></div>
+          <div style="width:8px;height:8px;background:#febc2e;border-radius:50%;"></div>
+          <div style="width:8px;height:8px;background:#28c840;border-radius:50%;"></div>
+          <span style="color:#8b949e;font-size:10px;margin-left:4px;">DM Voice — Einstellungen</span>
+        </div>
+        <div style="padding:10px 14px;font-size:11px;color:#e6edf3;">
+          <div style="margin-bottom:8px;">
+            <div style="color:#8b949e;font-size:10px;margin-bottom:2px;">SHORTCUT</div>
+            <div style="background:#0d1117;border-radius:4px;padding:4px 8px;display:inline-block;">⌥ Space</div>
+          </div>
+          <div>
+            <div style="color:#8b949e;font-size:10px;margin-bottom:2px;">MODELL</div>
+            <div style="background:#0d1117;border-radius:4px;padding:4px 8px;">large-v3-turbo ▾</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Kleines Einstellungs-Fenster</h3>
+      <p>Klick aufs Tray-Icon öffnet ein kleines natives Fenster mit Shortcut-Recorder und Modell-Dropdown.</p>
+    </div>
+  </div>
+
+</div>
