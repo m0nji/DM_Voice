@@ -1,1 +1,44 @@
-<!DOCTYPE html><html><body></body></html>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 120px; height: 40px;
+    background: transparent;
+    overflow: hidden;
+  }
+  #pill {
+    width: 120px; height: 40px;
+    background: #000;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 150ms ease;
+  }
+  #pill.visible { opacity: 1; }
+  .bar {
+    width: 3px;
+    height: 8px;
+    background: #fff;
+    border-radius: 2px;
+    transition: height 80ms ease, background 200ms ease;
+  }
+  #pill.done .bar { background: #22c55e; }
+</style>
+</head>
+<body>
+<div id="pill">
+  <div class="bar" id="b1"></div>
+  <div class="bar" id="b2"></div>
+  <div class="bar" id="b3"></div>
+  <div class="bar" id="b4"></div>
+  <div class="bar" id="b5"></div>
+</div>
+<script src="waveform.js"></script>
+</body>
+</html>
