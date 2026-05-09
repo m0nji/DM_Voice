@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="-apple-system, ui-monospace, Menlo, monospace">
+  <!--
+    Demo loop, 7s total, strictly sequential:
+      0.0–0.5s  idle (terminal, blinking cursor, hint "Hotkey halten…")
+      0.5–1.0s  Alt+Space hotkey hint pops in (top right)
+      1.0–3.5s  Recording: red pill, pulsing dot, animated waveform
+      3.5–4.7s  Processing: purple pill, "Transkribiere…"
+      4.7–5.2s  Done: green pill with checkmark
+      5.2–5.4s  pill fades out
+      5.4–6.2s  text types into terminal
+      6.2–7.0s  hold the final state, then loop
+
+    keyTimes are fractions of 7s; the major gates are
+      t1 = 0.071 (0.5s)  alt+space in
+      t2 = 0.143 (1.0s)  recording in
+      t3 = 0.500 (3.5s)  recording -> processing
+      t4 = 0.671 (4.7s)  processing -> done
+      t5 = 0.743 (5.2s)  done -> fade
+      t6 = 0.771 (5.4s)  text starts typing
+      t7 = 0.886 (6.2s)  text fully typed
+  -->
+
+  <defs>
+    <clipPath id="termclip"><rect x="40" y="40" width="640" height="280" rx="10"/></clipPath>
+  </defs>
+
+  <!-- solid dark background, no gradients (matches user's desktop) -->
+  <rect width="720" height="420" fill="#1a1a1a"/>
+
+  <!-- Terminal window -->
+  <g>
+    <rect x="40" y="40" width="640" height="280" rx="10" fill="#0f0f0f" stroke="#3a3a3c" stroke-width="0.5"/>
+    <rect x="40" y="40" width="640" height="28" rx="10" fill="#2c2c2e"/>
+    <rect x="40" y="60" width="640" height="8" fill="#2c2c2e"/>
+    <circle cx="60" cy="54" r="6" fill="#ff5f57"/>
+    <circle cx="80" cy="54" r="6" fill="#febc2e"/>
+    <circle cx="100" cy="54" r="6" fill="#28c840"/>
+    <text x="360" y="58" text-anchor="middle" fill="#98989d" font-size="12" font-family="-apple-system, system-ui, sans-serif">Terminal — zsh</text>
+  </g>
+
+  <!-- terminal content -->
+  <g clip-path="url(#termclip)" font-size="14">
+    <!-- prompt -->
+    <text x="60" y="100" fill="#22c0a8">~ $</text>
+
+    <!-- typed text + cursor only appear after the full transcription cycle -->
+    <text x="86" y="100" fill="#ffd866" font-weight="500" opacity="0">
+      <animate attributeName="opacity"
+               values="0;0;0;0;0;0;0;1;1;0"
+               keyTimes="0;0.071;0.143;0.500;0.671;0.743;0.771;0.78;0.99;1"
+               dur="7s" repeatCount="indefinite"/>
+      <tspan>
+        <animate attributeName="textLength" from="0" to="240"
+                 begin="5.4s" dur="0.8s" fill="freeze" restart="always"/>
+        Hello world, this is a test
+      </tspan>
+    </text>
+
+    <!-- blinking text-cursor; sits at column 0 until typing finishes,
+         then jumps to the end of the typed string -->
+    <rect x="86" y="88" width="8" height="16" fill="#ffffff">
+      <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+      <animate attributeName="x"
+               values="86;86;86;86;86;86;330;330"
+               keyTimes="0;0.143;0.500;0.671;0.743;0.886;0.89;1"
+               dur="7s" repeatCount="indefinite"/>
+    </rect>
+
+    <!-- "Hotkey halten…" hint, only during the idle phase -->
+    <text x="60" y="140" fill="#48484a" font-size="12" font-style="italic" font-family="-apple-system, system-ui, sans-serif">
+      <animate attributeName="opacity"
+               values="1;1;0;0"
+               keyTimes="0;0.10;0.143;1"
+               dur="7s" repeatCount="indefinite"/>
+      Hold the hotkey and speak…
+    </text>
+  </g>
+
+  <!-- Alt+Space hint badge — visible while user "holds" the hotkey -->
+  <g opacity="0">
+    <animate attributeName="opacity"
+             values="0;0;1;1;0;0"
+             keyTimes="0;0.071;0.10;0.490;0.500;1"
+             dur="7s" repeatCount="indefinite"/>
+    <rect x="540" y="20" width="140" height="28" rx="6" fill="#0a84ff" opacity="0.92"/>
+    <text x="610" y="38" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600" font-family="-apple-system, system-ui, sans-serif">⌥ Alt + Space</text>
+  </g>
+
+  <!-- Overlay pill — always dark; the active state is conveyed by a small
+       colored indicator (red / purple / green) inside, not by recoloring the
+       whole pill. Defaults keep the pill invisible in non-animating viewers. -->
+  <g>
+    <rect x="260" y="350" width="200" height="40" rx="20"
+          fill="#1c1c1e" stroke="#3a3a3c" stroke-width="0.5" opacity="0">
+      <animate attributeName="opacity"
+               values="0;0;1;1;0;0"
+               keyTimes="0;0.143;0.16;0.743;0.771;1"
+               dur="7s" repeatCount="indefinite"/>
+    </rect>
+
+    <!-- recording indicator: small red pulsing dot (only during 1.0–3.5s) -->
+    <circle cx="282" cy="370" r="6" fill="#ff453a" opacity="0">
+      <animate attributeName="opacity"
+               values="0;0;1;1;0;0"
+               keyTimes="0;0.143;0.16;0.495;0.500;1"
+               dur="7s" repeatCount="indefinite"/>
+      <animate attributeName="r" values="6;7.5;6" dur="0.7s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- processing indicator: small purple dot, shown during 3.5–4.7s -->
+    <circle cx="282" cy="370" r="6" fill="#bf5af2" opacity="0">
+      <animate attributeName="opacity"
+               values="0;0;1;1;0;0"
+               keyTimes="0;0.500;0.515;0.665;0.671;1"
+               dur="7s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- waveform bars — only during recording -->
+    <g fill="#ffffff">
+      <g opacity="0">
+        <animate attributeName="opacity"
+                 values="0;0;1;1;0;0"
+                 keyTimes="0;0.143;0.16;0.495;0.500;1"
+                 dur="7s" repeatCount="indefinite"/>
+        <rect x="305" y="365" width="3" height="10" rx="1.5"><animate attributeName="height" values="10;22;6;14;10" dur="0.6s" repeatCount="indefinite"/><animate attributeName="y" values="365;359;368;363;365" dur="0.6s" repeatCount="indefinite"/></rect>
+        <rect x="313" y="362" width="3" height="16" rx="1.5"><animate attributeName="height" values="16;8;24;12;16" dur="0.55s" repeatCount="indefinite"/><animate attributeName="y" values="362;366;358;364;362" dur="0.55s" repeatCount="indefinite"/></rect>
+        <rect x="321" y="368" width="3" height="4" rx="1.5"><animate attributeName="height" values="4;18;10;22;4" dur="0.5s" repeatCount="indefinite"/><animate attributeName="y" values="368;361;365;359;368" dur="0.5s" repeatCount="indefinite"/></rect>
+        <rect x="329" y="363" width="3" height="14" rx="1.5"><animate attributeName="height" values="14;6;20;8;14" dur="0.65s" repeatCount="indefinite"/><animate attributeName="y" values="363;367;360;366;363" dur="0.65s" repeatCount="indefinite"/></rect>
+        <rect x="337" y="358" width="3" height="24" rx="1.5"><animate attributeName="height" values="24;10;18;6;24" dur="0.45s" repeatCount="indefinite"/><animate attributeName="y" values="358;365;361;367;358" dur="0.45s" repeatCount="indefinite"/></rect>
+        <rect x="345" y="365" width="3" height="10" rx="1.5"><animate attributeName="height" values="10;22;6;14;10" dur="0.6s" repeatCount="indefinite"/><animate attributeName="y" values="365;359;368;363;365" dur="0.6s" repeatCount="indefinite"/></rect>
+        <rect x="353" y="362" width="3" height="16" rx="1.5"><animate attributeName="height" values="16;8;24;12;16" dur="0.55s" repeatCount="indefinite"/><animate attributeName="y" values="362;366;358;364;362" dur="0.55s" repeatCount="indefinite"/></rect>
+        <rect x="361" y="368" width="3" height="4" rx="1.5"><animate attributeName="height" values="4;18;10;22;4" dur="0.5s" repeatCount="indefinite"/><animate attributeName="y" values="368;361;365;359;368" dur="0.5s" repeatCount="indefinite"/></rect>
+        <rect x="369" y="363" width="3" height="14" rx="1.5"><animate attributeName="height" values="14;6;20;8;14" dur="0.65s" repeatCount="indefinite"/><animate attributeName="y" values="363;367;360;366;363" dur="0.65s" repeatCount="indefinite"/></rect>
+        <rect x="377" y="358" width="3" height="24" rx="1.5"><animate attributeName="height" values="24;10;18;6;24" dur="0.45s" repeatCount="indefinite"/><animate attributeName="y" values="358;365;361;367;358" dur="0.45s" repeatCount="indefinite"/></rect>
+        <rect x="385" y="368" width="3" height="4" rx="1.5"><animate attributeName="height" values="4;14;8;20;4" dur="0.55s" repeatCount="indefinite"/><animate attributeName="y" values="368;363;366;360;368" dur="0.55s" repeatCount="indefinite"/></rect>
+        <rect x="393" y="365" width="3" height="10" rx="1.5"><animate attributeName="height" values="10;22;6;14;10" dur="0.6s" repeatCount="indefinite"/><animate attributeName="y" values="365;359;368;363;365" dur="0.6s" repeatCount="indefinite"/></rect>
+      </g>
+    </g>
+
+    <!-- "Transkribiere…" label during processing -->
+    <text x="360" y="375" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="600" font-family="-apple-system, system-ui, sans-serif" opacity="0">
+      <animate attributeName="opacity"
+               values="0;0;1;1;0;0"
+               keyTimes="0;0.500;0.515;0.665;0.671;1"
+               dur="7s" repeatCount="indefinite"/>
+      Transcribing…
+    </text>
+
+    <!-- done indicator: green checkmark (only during 4.7–5.2s) -->
+    <g opacity="0">
+      <animate attributeName="opacity"
+               values="0;0;1;1;0;0"
+               keyTimes="0;0.671;0.685;0.738;0.743;1"
+               dur="7s" repeatCount="indefinite"/>
+      <path d="M 350 370 L 357 377 L 372 362"
+            fill="none" stroke="#34c759" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+
+  <!-- bottom caption -->
+  <text x="360" y="408" text-anchor="middle" fill="#98989d" font-size="11" font-family="-apple-system, system-ui, sans-serif">DM Voice — Push-to-Talk Speech-to-Text for macOS</text>
+</svg>
