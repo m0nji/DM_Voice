@@ -61,7 +61,7 @@ where
     let dir = models_dir();
     std::fs::create_dir_all(&dir)?;
     let url = format!("{}/{}", BASE_URL, filename);
-    let response = reqwest::get(&url).await?;
+    let response = reqwest::get(&url).await?.error_for_status()?;
     let total = response.content_length().unwrap_or(1);
     let mut downloaded: u64 = 0;
     let tmp_path = dir.join(format!("{}.tmp", filename));

@@ -23,7 +23,21 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey) mods.push('Ctrl');
   if (e.metaKey) mods.push('Super');
   if (e.shiftKey) mods.push('Shift');
-  const key = e.key.toUpperCase();
+  // Map e.key values to Tauri-compatible key names
+  const KEY_MAP = {
+    ' ': 'Space',
+    'ArrowUp': 'ArrowUp',
+    'ArrowDown': 'ArrowDown',
+    'ArrowLeft': 'ArrowLeft',
+    'ArrowRight': 'ArrowRight',
+    'Escape': 'Escape',
+    'Enter': 'Enter',
+    'Backspace': 'Backspace',
+    'Tab': 'Tab',
+    'Delete': 'Delete',
+  };
+  const rawKey = e.key;
+  const key = KEY_MAP[rawKey] || rawKey.toUpperCase();
   if (['ALT', 'CONTROL', 'META', 'SHIFT'].includes(key)) return;
   const shortcut = [...mods, key].join('+');
   shortcutBox.textContent = shortcut;

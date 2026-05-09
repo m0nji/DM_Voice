@@ -131,6 +131,13 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
         if !text.is_empty() {
             if injector::inject_text(&text).is_err() {
                 let _ = injector::copy_to_clipboard(&text);
+                use tauri_plugin_notification::NotificationExt;
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title("DM Voice")
+                    .body("Kein Textfeld aktiv — Text kopiert")
+                    .show();
             }
         }
         show_overlay(&app, "done");
@@ -235,10 +242,23 @@ fn main() {
             }
 
             // System tray
+            use tauri::menu::{Menu, MenuItem};
             use tauri::tray::{TrayIconBuilder, TrayIconEvent};
             let app_handle = app.handle().clone();
+
+            let quit_item =
+                MenuItem::with_id(app, "quit", "DM Voice beenden", true, None::<&str>)?;
+            let tray_menu = Menu::with_items(app, &[&quit_item])?;
+
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
+                .menu(&tray_menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(move |app, event| {
+                    if event.id() == "quit" {
+                        app.exit(0);
+                    }
+                })
                 .on_tray_icon_event(move |_, event| {
                     if let TrayIconEvent::Click { .. } = event {
                         if let Some(w) = app_handle.get_webview_window("settings") {

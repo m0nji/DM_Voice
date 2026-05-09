@@ -7,5 +7,7 @@
   <string>DM Voice benötigt Mikrofonzugriff für Spracheingabe.</string>
   <key>NSAccessibilityUsageDescription</key>
   <string>DM Voice benötigt Zugänglichkeitszugriff für Texteingabe.</string>
+  <key>LSUIElement</key>
+  <true/>
 </dict>
 </plist>
