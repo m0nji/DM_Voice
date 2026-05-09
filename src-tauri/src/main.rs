@@ -144,27 +144,19 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
         };
         eprintln!("[DM Voice] Transcription result: {:?} ({} chars)", &text, text.len());
         if !text.is_empty() {
-            // enigo calls TSMGetInputSourceProperty which requires the main thread.
-            // Marshal injection to the main thread and wait for it to complete.
-            let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-            let text_inject = text.clone();
-            let app_notify = app.clone();
-            let _ = app.run_on_main_thread(move || {
-                let result = injector::inject_text(&text_inject);
-                eprintln!("[DM Voice] inject_text result: {:?}", result.is_ok());
-                if result.is_err() {
-                    let _ = injector::copy_to_clipboard(&text_inject);
-                    use tauri_plugin_notification::NotificationExt;
-                    let _ = app_notify
-                        .notification()
-                        .builder()
-                        .title("DM Voice")
-                        .body("Kein Textfeld aktiv — Text kopiert")
-                        .show();
-                }
-                let _ = tx.send(());
-            });
-            let _ = rx.await;
+            // inject_text uses osascript (subprocess) — no main-thread constraint
+            let result = injector::inject_text(&text);
+            eprintln!("[DM Voice] inject_text result: {:?}", result);
+            if result.is_err() {
+                let _ = injector::copy_to_clipboard(&text);
+                use tauri_plugin_notification::NotificationExt;
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title("DM Voice")
+                    .body("Kein Textfeld aktiv — Text kopiert")
+                    .show();
+            }
         } else {
             eprintln!("[DM Voice] Empty transcription — nothing to inject");
         }
@@ -261,6 +253,7 @@ fn main() {
             download_model,
         ])
         .setup(move |app| {
+
             // Point whisper's Metal backend to the bundled ggml-metal.metal shader.
             // ggml-metal.m checks GGML_METAL_PATH_RESOURCES before falling back to
             // NSBundle lookup, which won't find files in subdirectories.

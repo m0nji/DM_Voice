@@ -1,15 +1,22 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" style="background:transparent;background-color:rgba(0,0,0,0)">
 <head>
 <meta charset="UTF-8">
+<meta name="color-scheme" content="dark">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
+  :root { background: transparent; color-scheme: dark; }
+  html {
+    background: transparent !important;
+    background-color: rgba(0,0,0,0) !important;
+  }
+  body {
     width: 120px; height: 40px;
     background: transparent !important;
     background-color: rgba(0,0,0,0) !important;
     overflow: hidden;
     -webkit-app-region: no-drag;
+    margin: 0; padding: 0;
   }
   #pill {
     width: 120px; height: 40px;
@@ -33,13 +40,13 @@
   #pill.done .bar { background: #22c55e; }
 </style>
 </head>
-<body>
+<body style="background:transparent;background-color:rgba(0,0,0,0)">
 <div id="pill">
-  <div class="bar" id="b1"></div>
-  <div class="bar" id="b2"></div>
-  <div class="bar" id="b3"></div>
-  <div class="bar" id="b4"></div>
-  <div class="bar" id="b5"></div>
+  <div class="bar"></div>
+  <div class="bar"></div>
+  <div class="bar"></div>
+  <div class="bar"></div>
+  <div class="bar"></div>
 </div>
 <script src="waveform.js"></script>
 </body>

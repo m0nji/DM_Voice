@@ -35,7 +35,8 @@
       "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\")",
       "Bash(/Users/thomas/.cargo/bin/cargo build *)",
       "Bash(/Users/thomas/.cargo/bin/cargo tauri *)",
-      "Bash(find ~/.cargo/registry/src/*/whisper-rs-sys-0.9.0/ -name \"*.m\" -o -name \"ggml-metal*\")"
+      "Bash(find ~/.cargo/registry/src/*/whisper-rs-sys-0.9.0/ -name \"*.m\" -o -name \"ggml-metal*\")",
+      "Bash(grep -v \"^--$\")"
     ]
   }
 }

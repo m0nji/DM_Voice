@@ -1,34 +1,43 @@
 use anyhow::Result;
 use arboard::Clipboard;
-use enigo::{Enigo, Key, Keyboard, Settings};
 use std::thread;
 use std::time::Duration;
 
+/// Inject text into the focused field.
+///
+/// macOS: copies to clipboard then simulates Cmd+V via AppleScript
+/// (osascript). This is the most reliable approach — no threading
+/// constraints, no Accessibility permission edge cases with enigo.
 pub fn inject_text(text: &str) -> Result<()> {
     if text.is_empty() {
         return Ok(());
     }
-    let mut clipboard = Clipboard::new()?;
-    let previous = clipboard.get_text().unwrap_or_default();
-    clipboard.set_text(text)?;
+    copy_to_clipboard(text)?;
     thread::sleep(Duration::from_millis(50));
-    let mut enigo = Enigo::new(&Settings::default())?;
+
     #[cfg(target_os = "macos")]
     {
-        enigo.key(Key::Meta, enigo::Direction::Press)?;
-        enigo.key(Key::Unicode('v'), enigo::Direction::Click)?;
-        enigo.key(Key::Meta, enigo::Direction::Release)?;
+        let script = r#"tell application "System Events" to keystroke "v" using command down"#;
+        let output = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .output()?;
+        if !output.status.success() {
+            let err = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("osascript failed: {}", err);
+        }
     }
+
     #[cfg(target_os = "windows")]
     {
+        use enigo::{Enigo, Key, Keyboard, Settings};
+        let mut enigo = Enigo::new(&Settings::default())?;
         enigo.key(Key::Control, enigo::Direction::Press)?;
         enigo.key(Key::Unicode('v'), enigo::Direction::Click)?;
         enigo.key(Key::Control, enigo::Direction::Release)?;
+        thread::sleep(Duration::from_millis(100));
     }
-    thread::sleep(Duration::from_millis(100));
-    if !previous.is_empty() {
-        let _ = clipboard.set_text(&previous);
-    }
+
     Ok(())
 }
 
@@ -44,7 +53,6 @@ mod tests {
 
     #[test]
     fn inject_empty_text_is_noop() {
-        let result = inject_text("");
-        assert!(result.is_ok());
+        assert!(inject_text("").is_ok());
     }
 }
