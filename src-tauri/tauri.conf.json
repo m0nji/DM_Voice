@@ -40,7 +40,8 @@
     "resources": ["resources/ggml-metal.metal"],
     "macOS": {
       "entitlements": "entitlements.plist",
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "13.0",
+      "signingIdentity": "DM Voice Local"
     }
   }
 }
