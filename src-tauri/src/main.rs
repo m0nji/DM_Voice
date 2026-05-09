@@ -103,6 +103,17 @@ async fn download_model(filename: String, app: AppHandle) -> Result<(), String> 
 
 fn show_overlay(app: &AppHandle, state_name: &str) {
     if let Some(w) = app.get_webview_window("overlay") {
+        // Position at bottom-center of the primary monitor (like SuperWhisper mini)
+        if let Ok(Some(monitor)) = w.primary_monitor() {
+            let mw = monitor.size().width as f64;
+            let mh = monitor.size().height as f64;
+            let scale = monitor.scale_factor();
+            let pill_w = 120.0 * scale;
+            let pill_h = 40.0 * scale;
+            let x = ((mw - pill_w) / 2.0) as i32;
+            let y = (mh - pill_h - 60.0 * scale) as i32;
+            let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+        }
         let _ = w.show();
         let _ = app.emit("recording-state", state_name);
     }
@@ -279,8 +290,13 @@ fn main() {
                 MenuItem::with_id(app, "quit", "DM Voice beenden", true, None::<&str>)?;
             let tray_menu = Menu::with_items(app, &[&quit_item])?;
 
+            let tray_icon_img = tauri::image::Image::from_path(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("icons/tray-icon.png"),
+            )
+            .unwrap_or_else(|_| app.default_window_icon().unwrap().clone());
+
             TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(tray_icon_img)
                 .icon_as_template(true)
                 .tooltip("DM Voice")
                 .menu(&tray_menu)

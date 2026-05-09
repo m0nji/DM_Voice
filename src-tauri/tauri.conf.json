@@ -19,7 +19,9 @@
         "visible": false,
         "skipTaskbar": true,
         "resizable": false,
-        "center": true,
+        "center": false,
+        "x": 0,
+        "y": 0,
         "focus": false
       }
     ],
