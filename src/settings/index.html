@@ -1,1 +1,51 @@
-<!DOCTYPE html><html><body></body></html>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13px;
+    background: #1e1e1e;
+    color: #e0e0e0;
+    padding: 16px;
+    width: 300px;
+  }
+  h1 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #fff; }
+  .field { margin-bottom: 14px; }
+  label { display: block; font-size: 11px; color: #888; text-transform: uppercase;
+          letter-spacing: 0.5px; margin-bottom: 4px; }
+  .shortcut-box {
+    background: #2c2c2e; border: 1px solid #3a3a3c; border-radius: 6px;
+    padding: 6px 10px; cursor: pointer; user-select: none;
+    color: #fff; font-size: 13px;
+  }
+  .shortcut-box.listening { border-color: #0a84ff; color: #0a84ff; }
+  .model-row { display: flex; justify-content: space-between; align-items: center;
+               padding: 6px 0; border-bottom: 1px solid #2c2c2e; }
+  .model-name { font-weight: 500; }
+  .model-meta { font-size: 11px; color: #888; }
+  button {
+    background: #0a84ff; border: none; border-radius: 5px; color: #fff;
+    padding: 4px 10px; font-size: 12px; cursor: pointer;
+  }
+  button.danger { background: #ff453a; }
+  .progress { height: 4px; background: #3a3a3c; border-radius: 2px; margin-top: 4px; }
+  .progress-bar { height: 100%; background: #0a84ff; border-radius: 2px;
+                  width: 0%; transition: width 200ms; }
+</style>
+</head>
+<body>
+<h1>DM Voice</h1>
+<div class="field">
+  <label>Shortcut</label>
+  <div class="shortcut-box" id="shortcut-box">Klicken zum Ändern</div>
+</div>
+<div class="field">
+  <label>Modelle</label>
+  <div id="model-list"></div>
+</div>
+<script src="settings.js"></script>
+</body>
+</html>
