@@ -56,6 +56,12 @@ jobs:
           echo "APPLE_API_KEY_PATH=$HOME/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" >> "$GITHUB_ENV"
 
       - name: Build & bundle (Tauri)
+        # Hard cap: tauri-bundler ruft `xcrun notarytool submit --wait` ohne
+        # eigenen Timeout auf. Wenn Apple's Notarization-Service Backlog hat,
+        # blockt der Step bis zum Job-Default von 6h. 30 min ist genug für
+        # einen normalen Notarization-Lauf (1–10 min) plus Puffer; danach
+        # failed der Build schnell statt CI-Minuten zu verbrennen.
+        timeout-minutes: 30
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
