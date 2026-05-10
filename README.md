@@ -1,6 +1,6 @@
 # DM Voice
 
-Push-to-Talk Speech-to-Text app for macOS. Hold the hotkey → speak → release → text gets injected into the currently active text field. Local, offline, powered by Whisper.
+Simple Push-to-Talk - Speech-to-Text app for macOS and Windows. Hold the hotkey → speak → release → text gets injected into the currently active text field. Local, offline, powered by Whisper.
 
 ![DM Voice — hold the hotkey, speak, watch the text appear](assets/demo.svg)
 
