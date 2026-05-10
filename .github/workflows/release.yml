@@ -52,9 +52,19 @@ jobs:
           # weil bundle.createUpdaterArtifacts: true gesetzt ist.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # No OS code signing in CI: the local self-signed cert lives only on
-          # your machine. The DMG is unsigned; users will need to right-click
-          # → Open the first time, or run `xattr -dr com.apple.quarantine`.
+          # Apple Developer ID Codesign + Notarization. tauri-action
+          # importiert das p12-Cert in einen temporären Keychain, signiert
+          # mit Hardened Runtime und schickt die fertige .app via API-Key
+          # zur Notarization an Apple. Ergebnis: Gatekeeper akzeptiert
+          # die App ohne "Rechtsklick → Öffnen", und TCC-Permissions
+          # (Mic/AX) überleben Updates, weil tccd auf cert-basierte
+          # Designated Requirements matched statt auf CDHash.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "DM Voice ${{ github.ref_name }}"
@@ -62,9 +72,10 @@ jobs:
             Automatischer Release-Build.
 
             **macOS (Apple Silicon)**: DMG öffnen, App nach `~/Applications`
-            ziehen. Beim ersten Start: Rechtsklick → "Öffnen" (App ist nicht
-            von Apple notarisiert), dann Mikrofon- und Bedienungshilfen-
-            Permissions erteilen.
+            ziehen. Beim ersten Start Mikrofon- und Bedienungshilfen-
+            Permissions erteilen. Die App ist Apple-notarisiert — kein
+            "Rechtsklick → Öffnen" mehr nötig, und Permissions überleben
+            Updates.
 
             **Windows (x86_64, GPU-beschleunigt via Vulkan)**: NSIS-Installer
             ausführen. Beim ersten Start zeigt Windows SmartScreen
@@ -73,9 +84,8 @@ jobs:
             Intel Arc/Xe out-of-the-box (Vulkan-Treiber sind im GPU-Treiber
             enthalten).
 
-            Bestehende Installationen aktualisieren sich künftig
-            automatisch über den eingebauten Updater (Tray → "Auf
-            Updates prüfen…").
+            Bestehende Installationen aktualisieren sich automatisch über
+            den eingebauten Updater (Tray → "Auf Updates prüfen…").
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
