@@ -1,6 +1,6 @@
 [package]
 name = "dm-voice"
-version = "0.3.6"
+version = "0.3.7"
 edition = "2021"
 license = "GPL-3.0-or-later"
 authors = ["DM Apps"]
@@ -17,6 +17,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 cpal = "0.15"
+rodio = { version = "0.19", default-features = false, features = ["wav"] }
 rubato = "0.15"
 arboard = "3"
 enigo = { version = "0.2", features = [] }

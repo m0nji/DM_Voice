@@ -5,8 +5,15 @@ const { listen } = window.__TAURI__.event;
 const shortcutBox = document.getElementById('shortcut-box');
 let listening = false;
 
+const soundsToggle = document.getElementById('sounds-toggle');
+
 invoke('get_config').then(cfg => {
   shortcutBox.textContent = cfg.shortcut;
+  soundsToggle.checked = cfg.sounds_enabled;
+});
+
+soundsToggle.addEventListener('change', () => {
+  invoke('set_sounds_enabled', { enabled: soundsToggle.checked });
 });
 
 shortcutBox.addEventListener('click', () => {

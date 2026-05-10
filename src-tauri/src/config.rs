@@ -6,6 +6,8 @@ use std::path::PathBuf;
 pub struct AppConfig {
     pub shortcut: String,
     pub model_name: String,
+    #[serde(default = "default_sounds_enabled")]
+    pub sounds_enabled: bool,
 }
 
 impl Default for AppConfig {
@@ -13,8 +15,13 @@ impl Default for AppConfig {
         Self {
             shortcut: default_shortcut().to_string(),
             model_name: "large-v3-turbo".to_string(),
+            sounds_enabled: default_sounds_enabled(),
         }
     }
+}
+
+fn default_sounds_enabled() -> bool {
+    true
 }
 
 // Plattform-spezifischer Default-Hotkey:
@@ -66,6 +73,7 @@ mod tests {
             let cfg = AppConfig {
                 shortcut: "Ctrl+D".to_string(),
                 model_name: "small".to_string(),
+                sounds_enabled: false,
             };
             let contents = toml::to_string(&cfg).unwrap();
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();

@@ -8,6 +8,7 @@ mod injector;
 mod models;
 mod permissions;
 mod shortcut;
+mod sounds;
 mod transcriber;
 mod updater;
 
@@ -89,6 +90,13 @@ fn set_shortcut(shortcut: String, state: State<'_, SharedState>, app: AppHandle)
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
     let _ = app.global_shortcut().unregister_all();
     register_shortcut(&app, &shortcut, Arc::clone(&state));
+}
+
+#[tauri::command]
+fn set_sounds_enabled(enabled: bool, state: State<'_, SharedState>) {
+    let mut cfg = state.config.lock().unwrap();
+    cfg.sounds_enabled = enabled;
+    let _ = save_config(&cfg);
 }
 
 #[tauri::command]
@@ -462,6 +470,9 @@ fn on_shortcut_pressed(app: &AppHandle, state: &SharedState) {
     *state.frontmost_pid.lock().unwrap() = pid;
     dlog!("on_shortcut_pressed: captured frontmost_pid={:?}", pid);
 
+    let sounds_enabled = state.config.lock().unwrap().sounds_enabled;
+    sounds::play_start(sounds_enabled);
+
     let mut audio = state.audio.lock().unwrap();
     if audio.start().is_err() {
         dlog!("on_shortcut_pressed: audio.start() failed");
@@ -513,6 +524,8 @@ fn on_shortcut_released(app: &AppHandle, state: &SharedState) {
         hide_overlay(app);
         return;
     }
+    let sounds_enabled = state.config.lock().unwrap().sounds_enabled;
+    sounds::play_end(sounds_enabled);
     trigger_transcription(app.clone(), Arc::clone(state));
 }
 
@@ -698,6 +711,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_config,
             set_shortcut,
+            set_sounds_enabled,
             list_models,
             delete_model,
             download_model,

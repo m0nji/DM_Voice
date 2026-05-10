@@ -47,6 +47,23 @@
   .perm-status.not_determined { background: rgba(255,159,10,0.18); color: #ff9f0a; }
   .perm-status.restricted { background: rgba(255,159,10,0.18); color: #ff9f0a; }
   .perm-status.unknown { background: rgba(142,142,147,0.25); color: #aeaeb2; }
+  .toggle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 0;
+  }
+  .toggle-row .toggle-label { font-weight: 500; }
+  .toggle-row input[type="checkbox"] {
+    appearance: none; width: 32px; height: 18px; background: #3a3a3c;
+    border-radius: 9px; position: relative; cursor: pointer; outline: none;
+    transition: background 150ms;
+  }
+  .toggle-row input[type="checkbox"]::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 14px; height: 14px; background: #fff; border-radius: 50%;
+    transition: left 150ms;
+  }
+  .toggle-row input[type="checkbox"]:checked { background: #0a84ff; }
+  .toggle-row input[type="checkbox"]:checked::after { left: 16px; }
   .update-row {
     background: #2c2c2e; border-radius: 6px; padding: 10px 12px;
     display: flex; flex-direction: column; gap: 6px;
@@ -68,6 +85,14 @@
 <div class="field">
   <label>Shortcut</label>
   <div class="shortcut-box" id="shortcut-box">Klicken zum Ändern</div>
+</div>
+
+<div class="field">
+  <label>Sounds</label>
+  <div class="toggle-row">
+    <span class="toggle-label">Töne abspielen</span>
+    <input type="checkbox" id="sounds-toggle">
+  </div>
 </div>
 
 <div class="field">
