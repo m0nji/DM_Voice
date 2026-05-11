@@ -681,7 +681,7 @@ fn show_settings_window(app: &AppHandle) {
             tauri::WebviewUrl::App("settings/index.html".into()),
         )
         .title("DM Voice")
-        .inner_size(300.0, 830.0)
+        .inner_size(320.0, 830.0)
         .resizable(false)
         .build();
     }
