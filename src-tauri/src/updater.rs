@@ -101,7 +101,7 @@ pub async fn install_update(
     {
         let mut s = state.lock().unwrap();
         if s.installing {
-            return Err("Update läuft bereits".into());
+            return Err("Update already in progress".into());
         }
         s.installing = true;
     }
@@ -111,7 +111,7 @@ pub async fn install_update(
         .check()
         .await
         .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Kein Update verfügbar".to_string())?;
+        .ok_or_else(|| "No update available".to_string())?;
 
     let app_for_progress = app.clone();
     let downloaded = Arc::new(Mutex::new(0u64));

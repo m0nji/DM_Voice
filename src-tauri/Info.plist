@@ -4,9 +4,9 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>DM Voice benötigt Mikrofonzugriff für Spracheingabe.</string>
+  <string>DM Voice needs microphone access for speech input.</string>
   <key>NSAccessibilityUsageDescription</key>
-  <string>DM Voice benötigt Zugänglichkeitszugriff für Texteingabe.</string>
+  <string>DM Voice needs accessibility access to insert text into other apps.</string>
   <key>CFBundleIconName</key>
   <string>AppIcon</string>
   <key>LSUIElement</key>

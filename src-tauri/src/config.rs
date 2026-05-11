@@ -2,12 +2,39 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum TypingSpeedPreset {
+    Beginner, // 24 WPM = 120 CPM
+    Average,  // 40 WPM = 200 CPM
+    Fast,     // 60 WPM = 300 CPM
+}
+
+impl Default for TypingSpeedPreset {
+    fn default() -> Self {
+        Self::Average
+    }
+}
+
+impl TypingSpeedPreset {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "beginner" => Some(Self::Beginner),
+            "average" => Some(Self::Average),
+            "fast" => Some(Self::Fast),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppConfig {
     pub shortcut: String,
     pub model_name: String,
     #[serde(default = "default_sounds_enabled")]
     pub sounds_enabled: bool,
+    #[serde(default)]
+    pub typing_speed_preset: TypingSpeedPreset,
 }
 
 impl Default for AppConfig {
@@ -16,6 +43,7 @@ impl Default for AppConfig {
             shortcut: default_shortcut().to_string(),
             model_name: "large-v3-turbo".to_string(),
             sounds_enabled: default_sounds_enabled(),
+            typing_speed_preset: TypingSpeedPreset::default(),
         }
     }
 }
@@ -74,6 +102,7 @@ mod tests {
                 shortcut: "Ctrl+D".to_string(),
                 model_name: "small".to_string(),
                 sounds_enabled: false,
+                typing_speed_preset: TypingSpeedPreset::Fast,
             };
             let contents = toml::to_string(&cfg).unwrap();
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();

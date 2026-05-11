@@ -1,6 +1,6 @@
 [package]
 name = "dm-voice"
-version = "0.3.7"
+version = "0.3.8"
 edition = "2021"
 license = "GPL-3.0-or-later"
 authors = ["DM Apps"]
@@ -29,6 +29,7 @@ tokio = { version = "1", features = ["full"] }
 anyhow = "1"
 futures-util = "0.3"
 serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 
 # whisper-rs: GPU-Backend ist plattformspezifisch.
 #   macOS  → Metal (Apple Silicon).

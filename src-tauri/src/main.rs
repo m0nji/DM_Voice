@@ -1,19 +1,21 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod audio;
-mod config;
 #[macro_use]
 mod dlog;
+mod audio;
+mod config;
 mod injector;
 mod models;
 mod permissions;
 mod shortcut;
 mod sounds;
+mod stats;
 mod transcriber;
 mod updater;
 
 use audio::{audio_stats, AudioCapture, TARGET_SAMPLE_RATE};
-use config::{load_config, save_config, AppConfig};
+use config::{load_config, save_config, AppConfig, TypingSpeedPreset};
+use stats::{MonthStatsPayload, UsageStats};
 use models::ModelInfo;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -65,6 +67,7 @@ struct AppState {
     // updater commands). Held here so `rebuild_tray_menu` can read it without
     // looking up the managed state.
     update: updater::SharedUpdateState,
+    usage_stats: Arc<UsageStats>,
 }
 
 type SharedState = Arc<AppState>;
@@ -97,6 +100,24 @@ fn set_sounds_enabled(enabled: bool, state: State<'_, SharedState>) {
     let mut cfg = state.config.lock().unwrap();
     cfg.sounds_enabled = enabled;
     let _ = save_config(&cfg);
+}
+
+#[tauri::command]
+fn set_typing_speed_preset(
+    preset: String,
+    state: State<'_, SharedState>,
+) -> Result<(), String> {
+    let parsed = TypingSpeedPreset::from_str(&preset)
+        .ok_or_else(|| format!("unknown preset '{}'", preset))?;
+    let mut cfg = state.config.lock().unwrap();
+    cfg.typing_speed_preset = parsed;
+    save_config(&cfg).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_current_month_stats(stats: State<'_, Arc<UsageStats>>) -> MonthStatsPayload {
+    stats.current_month()
 }
 
 #[tauri::command]
@@ -398,17 +419,21 @@ fn set_webview_transparent(_w: &tauri::WebviewWindow) {}
 
 fn trigger_transcription(app: AppHandle, state: SharedState) {
     tauri::async_runtime::spawn(async move {
+        // recording_s ≈ time from shortcut-press to here. The exact end-of-recording
+        // happens inside stop_and_get_buffer (cpal stream drop), but the buffer
+        // duration is more accurate — see below.
         let buffer = {
             let mut audio = state.audio.lock().unwrap();
             audio.stop_and_get_buffer().unwrap_or_default()
         };
-        let stats = audio_stats(&buffer, TARGET_SAMPLE_RATE);
+        let astats = audio_stats(&buffer, TARGET_SAMPLE_RATE);
+        let recording_s = astats.duration_secs;
         dlog!(
             "Audio stats: duration={:.2}s rms={:.5} peak={:.5} active={:.3} samples={}",
-            stats.duration_secs,
-            stats.rms,
-            stats.peak,
-            stats.active_ratio,
+            astats.duration_secs,
+            astats.rms,
+            astats.peak,
+            astats.active_ratio,
             buffer.len()
         );
         if buffer.is_empty() {
@@ -417,6 +442,7 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
             return;
         }
         show_overlay(&app, "processing");
+        let t_proc_start = Instant::now();
         let text = {
             let t = state.transcriber.lock().unwrap();
             if t.is_none() {
@@ -426,30 +452,41 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
                 .and_then(|t| t.transcribe(&buffer).ok())
                 .unwrap_or_default()
         };
+        let processing_s = t_proc_start.elapsed().as_secs_f32();
         dlog!("Transcription result: {:?} ({} chars)", &text, text.len());
         if !text.is_empty() {
             let target_pid = *state.frontmost_pid.lock().unwrap();
             dlog!("injecting into pid={:?}", target_pid);
             // NSPasteboard + CGEventPost both work best on the main thread.
-            let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+            let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), ()>>();
             let t = text.clone();
             let app2 = app.clone();
             let _ = app.run_on_main_thread(move || {
                 let result = injector::inject_text(&t, target_pid);
                 dlog!("inject_text result: {:?}", result);
-                if result.is_err() {
+                let ok = result.is_ok();
+                if !ok {
                     let _ = injector::copy_to_clipboard(&t);
                     use tauri_plugin_notification::NotificationExt;
                     let _ = app2
                         .notification()
                         .builder()
                         .title("DM Voice")
-                        .body("Kein Textfeld aktiv — Text kopiert")
+                        .body("No text field active — text copied to clipboard")
                         .show();
                 }
-                let _ = tx.send(());
+                let _ = tx.send(if ok { Ok(()) } else { Err(()) });
             });
-            let _ = rx.await;
+            let inject_result = rx.await.unwrap_or(Err(()));
+            // Record stats only when text was successfully injected into the target.
+            // Fallback-clipboard cases are still user-useful but we keep stats honest
+            // about "time saved vs typing into the app I was in".
+            if inject_result.is_ok() {
+                let chars = text.chars().count() as u32;
+                state
+                    .usage_stats
+                    .record(chars, recording_s, processing_s);
+            }
         } else {
             dlog!("Empty transcription — nothing to inject");
         }
@@ -567,7 +604,7 @@ fn build_tray_menu(
             Some(MenuItem::with_id(
                 app,
                 "update_install",
-                format!("Update auf v{} installieren", v),
+                format!("Install update v{}", v),
                 !update.installing,
                 None::<&str>,
             )?)
@@ -577,13 +614,13 @@ fn build_tray_menu(
     let update_check = MenuItem::with_id(
         app,
         "update_check",
-        "Auf Updates prüfen…",
+        "Check for updates…",
         !update.installing,
         None::<&str>,
     )?;
     let sep_update = PredefinedMenuItem::separator(app)?;
 
-    let model_header = MenuItem::with_id(app, "model_header", "Modell", false, None::<&str>)?;
+    let model_header = MenuItem::with_id(app, "model_header", "Model", false, None::<&str>)?;
 
     let mut model_items: Vec<CheckMenuItem<tauri::Wry>> = Vec::new();
     for m in models::list_models() {
@@ -591,26 +628,25 @@ fn build_tray_menu(
         let label = if m.installed {
             format!("  {}", m.name)
         } else {
-            format!("  {}  (nicht heruntergeladen)", m.name)
+            format!("  {}  (not downloaded)", m.name)
         };
         let checked = m.installed && m.name == cfg.model_name;
         let item = CheckMenuItem::with_id(app, &id, &label, m.installed, checked, None::<&str>)?;
         model_items.push(item);
     }
     let sep2 = PredefinedMenuItem::separator(app)?;
-    let settings_item =
-        MenuItem::with_id(app, "settings", "Einstellungen…", true, None::<&str>)?;
+    let settings_item = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let autostart_enabled = autostart_is_enabled(app);
     let autostart_item = CheckMenuItem::with_id(
         app,
         "autostart",
-        "Beim Login starten",
+        "Start at login",
         true,
         autostart_enabled,
         None::<&str>,
     )?;
     let sep3 = PredefinedMenuItem::separator(app)?;
-    let quit_item = MenuItem::with_id(app, "quit", "DM Voice beenden", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit DM Voice", true, None::<&str>)?;
 
     let mut refs: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&header, &sep1];
     if let Some(it) = update_install.as_ref() {
@@ -632,7 +668,7 @@ fn build_tray_menu(
 }
 
 /// Show (or create) the settings window. Called from the tray menu's
-/// "Einstellungen…" item — the tray-icon click itself just opens the menu,
+/// "Settings…" item — the tray-icon click itself just opens the menu,
 /// matching macOS status-bar conventions.
 fn show_settings_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("settings") {
@@ -645,7 +681,7 @@ fn show_settings_window(app: &AppHandle) {
             tauri::WebviewUrl::App("settings/index.html".into()),
         )
         .title("DM Voice")
-        .inner_size(300.0, 680.0)
+        .inner_size(300.0, 830.0)
         .resizable(false)
         .build();
     }
@@ -688,6 +724,7 @@ fn main() {
     let cfg = load_config();
     let update_state: updater::SharedUpdateState =
         Arc::new(Mutex::new(updater::UpdateState::new()));
+    let usage_stats = Arc::new(UsageStats::load());
     let state: SharedState = Arc::new(AppState {
         audio: Mutex::new(AudioGuard::new()),
         recording_start: Mutex::new(None),
@@ -696,6 +733,7 @@ fn main() {
         transcriber: Mutex::new(None),
         frontmost_pid: Mutex::new(None),
         update: Arc::clone(&update_state),
+        usage_stats: Arc::clone(&usage_stats),
     });
 
     tauri::Builder::default()
@@ -708,10 +746,13 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Arc::clone(&state))
         .manage(Arc::clone(&update_state))
+        .manage(Arc::clone(&usage_stats))
         .invoke_handler(tauri::generate_handler![
             get_config,
             set_shortcut,
             set_sounds_enabled,
+            set_typing_speed_preset,
+            get_current_month_stats,
             list_models,
             delete_model,
             download_model,
@@ -906,11 +947,8 @@ fn main() {
                     let _ = app_for_update
                         .notification()
                         .builder()
-                        .title("DM Voice — Update verfügbar")
-                        .body(format!(
-                            "Version {} ist bereit zum Installieren.",
-                            v
-                        ))
+                        .title("DM Voice — Update available")
+                        .body(format!("Version {} is ready to install.", v))
                         .show();
                 }
             });

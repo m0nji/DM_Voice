@@ -1,276 +1,361 @@
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
+const { t, initI18n, applyI18n } = window.i18n;
 
-// --- Shortcut Recorder ---
-const shortcutBox = document.getElementById('shortcut-box');
-let listening = false;
+// --- Typing-speed presets (kept in sync with src-tauri/src/config.rs) ---
+const PRESET_CPM = { beginner: 120, average: 200, fast: 300 };
+const PRESET_WPM = { beginner: 24, average: 40, fast: 60 };
 
-const soundsToggle = document.getElementById('sounds-toggle');
+// Run all UI init after i18n strings are loaded so static elements are localized
+// before any dynamic update overwrites them.
+(async function boot() {
+  await initI18n('en');
+  applyI18n();
+  initShortcut();
+  initSounds();
+  initTimesaved();
+  initModels();
+  initPermissions();
+  initUpdates();
+})();
 
-invoke('get_config').then(cfg => {
-  shortcutBox.textContent = cfg.shortcut;
-  soundsToggle.checked = cfg.sounds_enabled;
-});
+// ─── Shortcut ──────────────────────────────────────────────────────────────
+function initShortcut() {
+  const shortcutBox = document.getElementById('shortcut-box');
+  let listening = false;
 
-soundsToggle.addEventListener('change', () => {
-  invoke('set_sounds_enabled', { enabled: soundsToggle.checked });
-});
+  invoke('get_config').then(cfg => {
+    shortcutBox.textContent = cfg.shortcut;
+  });
 
-shortcutBox.addEventListener('click', () => {
-  listening = true;
-  shortcutBox.classList.add('listening');
-  shortcutBox.textContent = 'Taste drücken…';
-});
+  shortcutBox.addEventListener('click', () => {
+    listening = true;
+    shortcutBox.classList.add('listening');
+    shortcutBox.textContent = t('settings.shortcut.listening');
+  });
 
-// Codes that are pure modifier keys — never used as the primary key
-const MODIFIER_CODES = new Set([
-  'AltLeft','AltRight','ShiftLeft','ShiftRight',
-  'ControlLeft','ControlRight','MetaLeft','MetaRight',
-  'CapsLock','NumLock','ScrollLock',
-]);
+  const MODIFIER_CODES = new Set([
+    'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight',
+    'ControlLeft', 'ControlRight', 'MetaLeft', 'MetaRight',
+    'CapsLock', 'NumLock', 'ScrollLock',
+  ]);
 
-document.addEventListener('keydown', (e) => {
-  if (!listening) return;
-  e.preventDefault();
+  document.addEventListener('keydown', (e) => {
+    if (!listening) return;
+    e.preventDefault();
+    if (MODIFIER_CODES.has(e.code)) return;
 
-  // Skip if only a modifier key was pressed — wait for the actual key
-  if (MODIFIER_CODES.has(e.code)) return;
+    const mods = [];
+    if (e.altKey) mods.push('Alt');
+    if (e.ctrlKey) mods.push('Ctrl');
+    if (e.metaKey) mods.push('Super');
+    if (e.shiftKey) mods.push('Shift');
 
-  const mods = [];
-  if (e.altKey) mods.push('Alt');
-  if (e.ctrlKey) mods.push('Ctrl');
-  if (e.metaKey) mods.push('Super');
-  if (e.shiftKey) mods.push('Shift');
+    const CODE_MAP = {
+      'Space': 'Space', 'Enter': 'Enter', 'Backspace': 'Backspace',
+      'Tab': 'Tab', 'Delete': 'Delete', 'Escape': 'Escape', 'Home': 'Home',
+      'End': 'End', 'PageUp': 'PageUp', 'PageDown': 'PageDown', 'Insert': 'Insert',
+      'ArrowUp': 'ArrowUp', 'ArrowDown': 'ArrowDown',
+      'ArrowLeft': 'ArrowLeft', 'ArrowRight': 'ArrowRight',
+      'F1': 'F1', 'F2': 'F2', 'F3': 'F3', 'F4': 'F4', 'F5': 'F5', 'F6': 'F6',
+      'F7': 'F7', 'F8': 'F8', 'F9': 'F9', 'F10': 'F10', 'F11': 'F11', 'F12': 'F12',
+    };
 
-  // Use e.code (physical key, layout-independent)
-  const CODE_MAP = {
-    'Space': 'Space', 'Enter': 'Enter', 'Backspace': 'Backspace',
-    'Tab': 'Tab', 'Delete': 'Delete', 'Escape': 'Escape', 'Home': 'Home',
-    'End': 'End', 'PageUp': 'PageUp', 'PageDown': 'PageDown', 'Insert': 'Insert',
-    'ArrowUp': 'ArrowUp', 'ArrowDown': 'ArrowDown',
-    'ArrowLeft': 'ArrowLeft', 'ArrowRight': 'ArrowRight',
-    'F1':'F1','F2':'F2','F3':'F3','F4':'F4','F5':'F5','F6':'F6',
-    'F7':'F7','F8':'F8','F9':'F9','F10':'F10','F11':'F11','F12':'F12',
-  };
+    let key;
+    const code = e.code;
+    if (code.startsWith('Key')) key = code.slice(3);
+    else if (code.startsWith('Digit')) key = code.slice(5);
+    else key = CODE_MAP[code] || code;
 
-  let key;
-  const code = e.code;
-  if (code.startsWith('Key')) {
-    key = code.slice(3);      // 'KeyA' → 'A'
-  } else if (code.startsWith('Digit')) {
-    key = code.slice(5);      // 'Digit1' → '1'
-  } else {
-    key = CODE_MAP[code] || code;
-  }
+    if (mods.length === 0) return;
 
-  // Need at least one modifier for a valid shortcut
-  if (mods.length === 0) return;
-
-  const shortcut = [...mods, key].join('+');
-  shortcutBox.textContent = shortcut;
-  shortcutBox.classList.remove('listening');
-  listening = false;
-  invoke('set_shortcut', { shortcut });
-});
-
-// --- Model List ---
-const modelList = document.getElementById('model-list');
-
-function renderModels(models) {
-  modelList.innerHTML = '';
-  models.forEach(m => {
-    const row = document.createElement('div');
-    row.className = 'model-row';
-    row.id = `model-${m.name}`;
-    const sizeMb = Math.round(m.size_bytes / 1_000_000);
-
-    const infoDiv = document.createElement('div');
-    infoDiv.innerHTML = `
-      <div class="model-name">${m.name}</div>
-      <div class="model-meta">${sizeMb} MB · ${m.quality}</div>
-      <div class="progress" id="prog-${m.name}" style="display:none">
-        <div class="progress-bar" id="progbar-${m.name}"></div>
-      </div>`;
-
-    const btnDiv = document.createElement('div');
-    const btn = document.createElement('button');
-    if (m.installed) {
-      btn.className = 'danger';
-      btn.textContent = 'Löschen';
-      btn.addEventListener('click', () => deleteModel(m.name, m.filename));
-    } else {
-      btn.textContent = 'Download';
-      btn.addEventListener('click', () => downloadModel(m.name, m.filename));
-    }
-    btnDiv.appendChild(btn);
-
-    row.appendChild(infoDiv);
-    row.appendChild(btnDiv);
-    modelList.appendChild(row);
+    const shortcut = [...mods, key].join('+');
+    shortcutBox.textContent = shortcut;
+    shortcutBox.classList.remove('listening');
+    listening = false;
+    invoke('set_shortcut', { shortcut });
   });
 }
 
-function downloadModel(name, filename) {
-  document.getElementById(`prog-${name}`).style.display = 'block';
-  invoke('download_model', { filename });
-}
-
-function deleteModel(name, filename) {
-  invoke('delete_model', { filename }).then(() => loadModels());
-}
-
-function loadModels() {
-  invoke('list_models').then(renderModels);
-}
-
-listen('model-download-progress', (e) => {
-  const { name, progress } = e.payload;
-  const bar = document.getElementById(`progbar-${name}`);
-  if (bar) bar.style.width = (progress * 100) + '%';
-  if (progress >= 1.0) setTimeout(loadModels, 500);
-});
-
-loadModels();
-
-// --- Permissions ---
-const PERM_LABELS = {
-  granted: 'Erteilt',
-  denied: 'Verweigert',
-  not_determined: 'Nicht erteilt',
-  restricted: 'Eingeschränkt',
-  unknown: '–',
-};
-
-function renderPermRow(rowId, status, paneName) {
-  const row = document.getElementById(rowId);
-  if (!row) return;
-  const badge = row.querySelector('.perm-status');
-  const btn = row.querySelector('button');
-  badge.className = 'perm-status ' + status;
-  badge.textContent = PERM_LABELS[status] || status;
-  // For not_determined → ask app to prompt; otherwise → open System Settings
-  btn.textContent = status === 'not_determined' ? 'Anfragen' : 'Öffnen';
-  btn.onclick = () => {
-    if (status === 'not_determined') {
-      invoke('request_permissions').then(() => setTimeout(loadPermissions, 500));
-    } else {
-      invoke('open_privacy_pane', { pane: paneName });
-    }
-  };
-}
-
-function loadPermissions() {
-  invoke('get_permissions').then(s => {
-    renderPermRow('perm-mic', s.microphone, 'Microphone');
-    renderPermRow('perm-ax', s.accessibility, 'Accessibility');
+// ─── Sounds toggle ─────────────────────────────────────────────────────────
+function initSounds() {
+  const soundsToggle = document.getElementById('sounds-toggle');
+  invoke('get_config').then(cfg => {
+    soundsToggle.checked = cfg.sounds_enabled;
+  });
+  soundsToggle.addEventListener('change', () => {
+    invoke('set_sounds_enabled', { enabled: soundsToggle.checked });
   });
 }
 
-loadPermissions();
-// Re-poll periodically so the badge updates after the user toggles in System Settings
-setInterval(loadPermissions, 2000);
+// ─── Time Saved ────────────────────────────────────────────────────────────
+function initTimesaved() {
+  const select = document.getElementById('typing-speed-select');
 
-// --- Updates ---
-const updateVersionEl   = document.getElementById('update-version');
-const updateStatusEl    = document.getElementById('update-status');
-const updateNotesEl     = document.getElementById('update-notes');
-const updateInstallLine = document.getElementById('update-install-line');
-const updateInstallBtn  = document.getElementById('update-install-btn');
-const updateCheckBtn    = document.getElementById('update-check-btn');
-const updateProgress    = document.getElementById('update-progress');
-const updateProgressBar = document.getElementById('update-progress-bar');
-const updateProgressTxt = document.getElementById('update-progress-text');
+  function render(stats, preset) {
+    const cpm = PRESET_CPM[preset] || PRESET_CPM.average;
+    const wpm = PRESET_WPM[preset] || PRESET_WPM.average;
+    const minutesEl  = document.getElementById('timesaved-minutes');
+    const subtitleEl = document.getElementById('timesaved-subtitle');
+    const basisEl    = document.getElementById('timesaved-basis');
 
-function fmtTime(unix) {
-  if (!unix) return null;
-  const d = new Date(unix * 1000);
-  return d.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function renderUpdateState(s) {
-  updateVersionEl.textContent = `Version ${s.current_version}`;
-  if (s.installing) {
-    updateStatusEl.textContent = 'Installation läuft…';
-    updateStatusEl.className = 'update-meta';
-    updateCheckBtn.disabled = true;
-    updateInstallBtn.disabled = true;
-    return;
-  }
-  updateCheckBtn.disabled = false;
-  updateInstallBtn.disabled = false;
-
-  if (s.last_error) {
-    updateStatusEl.textContent = `Fehler: ${s.last_error}`;
-    updateStatusEl.className = 'update-meta update-status error';
-    updateNotesEl.style.display = 'none';
-    updateInstallLine.style.display = 'none';
-    return;
-  }
-
-  if (s.latest_version) {
-    updateStatusEl.textContent = `Update verfügbar: v${s.latest_version}`;
-    updateStatusEl.className = 'update-meta update-status available';
-    if (s.notes && s.notes.trim()) {
-      updateNotesEl.textContent = s.notes.trim();
-      updateNotesEl.style.display = 'block';
+    if (!stats || stats.dictation_count === 0) {
+      minutesEl.textContent = '0';
+      subtitleEl.textContent = t('settings.timesaved.empty');
     } else {
-      updateNotesEl.style.display = 'none';
+      const typingMin = stats.total_chars / cpm;
+      const actualMin = (stats.total_recording_s + stats.total_processing_s) / 60;
+      const saved = Math.max(0, typingMin - actualMin);
+
+      if (saved < 1 && stats.dictation_count > 0) {
+        minutesEl.textContent = t('settings.timesaved.lessThanMinute');
+        minutesEl.style.fontSize = '18px';
+      } else {
+        minutesEl.textContent = `${Math.round(saved)} ${t('settings.timesaved.minSuffix')}`;
+        minutesEl.style.fontSize = '';
+      }
+
+      const subtitleKey = stats.dictation_count === 1
+        ? 'settings.timesaved.subtitle.one'
+        : 'settings.timesaved.subtitle';
+      subtitleEl.textContent = t(subtitleKey, {
+        month: stats.month_label,
+        count: stats.dictation_count,
+      });
     }
-    updateInstallLine.style.display = 'flex';
-  } else {
-    updateInstallLine.style.display = 'none';
-    updateNotesEl.style.display = 'none';
-    const when = fmtTime(s.last_check_unix);
-    updateStatusEl.textContent = when
-      ? `Aktuell — letzter Check: ${when}`
-      : 'Noch nicht geprüft.';
-    updateStatusEl.className = 'update-meta';
+
+    basisEl.textContent = t('settings.timesaved.basis', { wpm, cpm });
   }
+
+  async function load() {
+    const [stats, cfg] = await Promise.all([
+      invoke('get_current_month_stats'),
+      invoke('get_config'),
+    ]);
+    select.value = cfg.typing_speed_preset || 'average';
+    render(stats, select.value);
+  }
+
+  select.addEventListener('change', async () => {
+    const preset = select.value;
+    try {
+      await invoke('set_typing_speed_preset', { preset });
+    } catch (e) {
+      console.error('set_typing_speed_preset failed', e);
+    }
+    const stats = await invoke('get_current_month_stats');
+    render(stats, preset);
+  });
+
+  load();
+  // Refresh occasionally so the panel reflects dictations made while the
+  // settings window is open (rare, but cheap).
+  setInterval(async () => {
+    const stats = await invoke('get_current_month_stats');
+    render(stats, select.value);
+  }, 5000);
 }
 
-function loadUpdateState() {
-  invoke('get_update_state').then(renderUpdateState);
+// ─── Models ────────────────────────────────────────────────────────────────
+function initModels() {
+  const modelList = document.getElementById('model-list');
+
+  function renderModels(models) {
+    modelList.innerHTML = '';
+    models.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'model-row';
+      row.id = `model-${m.name}`;
+      const sizeMb = Math.round(m.size_bytes / 1_000_000);
+
+      const infoDiv = document.createElement('div');
+      infoDiv.innerHTML = `
+        <div class="model-name"></div>
+        <div class="model-meta"></div>
+        <div class="progress" id="prog-${m.name}" style="display:none">
+          <div class="progress-bar" id="progbar-${m.name}"></div>
+        </div>`;
+      infoDiv.querySelector('.model-name').textContent = m.name;
+      infoDiv.querySelector('.model-meta').textContent = `${sizeMb} MB · ${m.quality}`;
+
+      const btnDiv = document.createElement('div');
+      const btn = document.createElement('button');
+      if (m.installed) {
+        btn.className = 'danger';
+        btn.textContent = t('settings.models.delete');
+        btn.addEventListener('click', () => deleteModel(m.name, m.filename));
+      } else {
+        btn.textContent = t('settings.models.download');
+        btn.addEventListener('click', () => downloadModel(m.name, m.filename));
+      }
+      btnDiv.appendChild(btn);
+
+      row.appendChild(infoDiv);
+      row.appendChild(btnDiv);
+      modelList.appendChild(row);
+    });
+  }
+
+  function downloadModel(name, filename) {
+    document.getElementById(`prog-${name}`).style.display = 'block';
+    invoke('download_model', { filename });
+  }
+
+  function deleteModel(name, filename) {
+    invoke('delete_model', { filename }).then(() => loadModels());
+  }
+
+  function loadModels() {
+    invoke('list_models').then(renderModels);
+  }
+
+  listen('model-download-progress', (e) => {
+    const { name, progress } = e.payload;
+    const bar = document.getElementById(`progbar-${name}`);
+    if (bar) bar.style.width = (progress * 100) + '%';
+    if (progress >= 1.0) setTimeout(loadModels, 500);
+  });
+
+  loadModels();
 }
 
-updateCheckBtn.addEventListener('click', () => {
-  updateCheckBtn.disabled = true;
-  updateStatusEl.textContent = 'Prüfe…';
-  updateStatusEl.className = 'update-meta';
-  invoke('check_for_updates')
-    .then(renderUpdateState)
-    .catch(err => {
-      updateStatusEl.textContent = `Fehler: ${err}`;
-      updateStatusEl.className = 'update-meta update-status error';
-    })
-    .finally(() => { updateCheckBtn.disabled = false; });
-});
+// ─── Permissions ───────────────────────────────────────────────────────────
+function initPermissions() {
+  function renderPermRow(rowId, status, paneName) {
+    const row = document.getElementById(rowId);
+    if (!row) return;
+    const badge = row.querySelector('.perm-status');
+    const btn = row.querySelector('button');
+    badge.className = 'perm-status ' + status;
+    badge.textContent = t('settings.permissions.status.' + status) || status;
+    btn.textContent = status === 'not_determined'
+      ? t('settings.permissions.action.request')
+      : t('settings.permissions.action.open');
+    btn.onclick = () => {
+      if (status === 'not_determined') {
+        invoke('request_permissions').then(() => setTimeout(loadPermissions, 500));
+      } else {
+        invoke('open_privacy_pane', { pane: paneName });
+      }
+    };
+  }
 
-updateInstallBtn.addEventListener('click', () => {
-  updateInstallBtn.disabled = true;
-  updateProgress.style.display = 'block';
-  updateProgressBar.style.width = '0%';
-  updateProgressTxt.textContent = 'Lade…';
-  invoke('install_update').catch(err => {
-    updateProgressTxt.textContent = `Fehler: ${err}`;
+  function loadPermissions() {
+    invoke('get_permissions').then(s => {
+      renderPermRow('perm-mic', s.microphone, 'Microphone');
+      renderPermRow('perm-ax', s.accessibility, 'Accessibility');
+    });
+  }
+
+  loadPermissions();
+  setInterval(loadPermissions, 2000);
+}
+
+// ─── Updates ───────────────────────────────────────────────────────────────
+function initUpdates() {
+  const updateVersionEl   = document.getElementById('update-version');
+  const updateStatusEl    = document.getElementById('update-status');
+  const updateNotesEl     = document.getElementById('update-notes');
+  const updateInstallLine = document.getElementById('update-install-line');
+  const updateInstallBtn  = document.getElementById('update-install-btn');
+  const updateCheckBtn    = document.getElementById('update-check-btn');
+  const updateProgress    = document.getElementById('update-progress');
+  const updateProgressBar = document.getElementById('update-progress-bar');
+  const updateProgressTxt = document.getElementById('update-progress-text');
+
+  function fmtTime(unix) {
+    if (!unix) return null;
+    const d = new Date(unix * 1000);
+    return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  function renderUpdateState(s) {
+    updateVersionEl.textContent = t('settings.updates.version', { version: s.current_version });
+    if (s.installing) {
+      updateStatusEl.textContent = t('settings.updates.installing');
+      updateStatusEl.className = 'update-meta';
+      updateCheckBtn.disabled = true;
+      updateInstallBtn.disabled = true;
+      return;
+    }
+    updateCheckBtn.disabled = false;
     updateInstallBtn.disabled = false;
-  });
-});
 
-listen('update-progress', (e) => {
-  const { downloaded, total } = e.payload;
-  if (total) {
-    const pct = (downloaded / total) * 100;
-    updateProgressBar.style.width = pct.toFixed(1) + '%';
-    updateProgressTxt.textContent =
-      `Lade ${(downloaded / 1_000_000).toFixed(1)} / ${(total / 1_000_000).toFixed(1)} MB`;
-  } else {
-    updateProgressTxt.textContent =
-      `Lade ${(downloaded / 1_000_000).toFixed(1)} MB`;
+    if (s.last_error) {
+      updateStatusEl.textContent = t('settings.updates.error', { msg: s.last_error });
+      updateStatusEl.className = 'update-meta update-status error';
+      updateNotesEl.style.display = 'none';
+      updateInstallLine.style.display = 'none';
+      return;
+    }
+
+    if (s.latest_version) {
+      updateStatusEl.textContent = t('settings.updates.available', { version: s.latest_version });
+      updateStatusEl.className = 'update-meta update-status available';
+      if (s.notes && s.notes.trim()) {
+        updateNotesEl.textContent = s.notes.trim();
+        updateNotesEl.style.display = 'block';
+      } else {
+        updateNotesEl.style.display = 'none';
+      }
+      updateInstallLine.style.display = 'flex';
+    } else {
+      updateInstallLine.style.display = 'none';
+      updateNotesEl.style.display = 'none';
+      const when = fmtTime(s.last_check_unix);
+      updateStatusEl.textContent = when
+        ? t('settings.updates.upToDate', { when })
+        : t('settings.updates.notChecked');
+      updateStatusEl.className = 'update-meta';
+    }
   }
-});
 
-listen('update-checked', (e) => {
-  renderUpdateState(e.payload);
-});
+  function loadUpdateState() {
+    invoke('get_update_state').then(renderUpdateState);
+  }
 
-loadUpdateState();
+  updateCheckBtn.addEventListener('click', () => {
+    updateCheckBtn.disabled = true;
+    updateStatusEl.textContent = t('settings.updates.checking');
+    updateStatusEl.className = 'update-meta';
+    invoke('check_for_updates')
+      .then(renderUpdateState)
+      .catch(err => {
+        updateStatusEl.textContent = t('settings.updates.error', { msg: err });
+        updateStatusEl.className = 'update-meta update-status error';
+      })
+      .finally(() => { updateCheckBtn.disabled = false; });
+  });
+
+  updateInstallBtn.addEventListener('click', () => {
+    updateInstallBtn.disabled = true;
+    updateProgress.style.display = 'block';
+    updateProgressBar.style.width = '0%';
+    updateProgressTxt.textContent = t('settings.updates.downloadingUnknown', { done: '0.0' });
+    invoke('install_update').catch(err => {
+      updateProgressTxt.textContent = t('settings.updates.error', { msg: err });
+      updateInstallBtn.disabled = false;
+    });
+  });
+
+  listen('update-progress', (e) => {
+    const { downloaded, total } = e.payload;
+    const done = (downloaded / 1_000_000).toFixed(1);
+    if (total) {
+      const pct = (downloaded / total) * 100;
+      updateProgressBar.style.width = pct.toFixed(1) + '%';
+      updateProgressTxt.textContent = t('settings.updates.downloading', {
+        done,
+        total: (total / 1_000_000).toFixed(1),
+      });
+    } else {
+      updateProgressTxt.textContent = t('settings.updates.downloadingUnknown', { done });
+    }
+  });
+
+  listen('update-checked', (e) => {
+    renderUpdateState(e.payload);
+  });
+
+  loadUpdateState();
+}

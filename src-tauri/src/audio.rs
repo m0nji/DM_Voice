@@ -107,7 +107,7 @@ impl AudioCapture {
         let host = cpal::default_host();
         let device = host
             .default_input_device()
-            .ok_or_else(|| anyhow::anyhow!("Kein Mikrofon gefunden"))?;
+            .ok_or_else(|| anyhow::anyhow!("No microphone found"))?;
         let supported = device.default_input_config()?;
         let sample_rate = supported.sample_rate().0;
         self.sample_rate = sample_rate;

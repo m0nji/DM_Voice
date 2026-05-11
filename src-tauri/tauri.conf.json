@@ -1,6 +1,6 @@
 {
   "productName": "DM Voice",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "identifier": "de.dmvoice.app",
   "build": {
     "frontendDist": "../src"
@@ -50,7 +50,7 @@
         "type": "downloadBootstrapper"
       },
       "nsis": {
-        "languages": ["German", "English"],
+        "languages": ["English"],
         "displayLanguageSelector": false,
         "installMode": "currentUser"
       }

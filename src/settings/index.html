@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 13px;
     background: #1e1e1e;
     color: #e0e0e0;
@@ -64,6 +64,36 @@
   }
   .toggle-row input[type="checkbox"]:checked { background: #0a84ff; }
   .toggle-row input[type="checkbox"]:checked::after { left: 16px; }
+
+  /* Time Saved card */
+  .timesaved-card {
+    background: #2c2c2e; border-radius: 6px; padding: 12px 12px 10px;
+  }
+  .timesaved-main { text-align: center; margin-bottom: 10px; }
+  .timesaved-minutes {
+    font-size: 28px; font-weight: 700; color: #30d158;
+    line-height: 1.1;
+  }
+  .timesaved-subtitle {
+    font-size: 11px; color: #aeaeb2; margin-top: 2px;
+  }
+  .timesaved-controls {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 6px 0; border-top: 1px solid #1e1e1e;
+  }
+  .timesaved-controls .typing-speed-label {
+    font-size: 11px; color: #aeaeb2; font-weight: 500;
+    text-transform: none; letter-spacing: 0; margin: 0;
+  }
+  .timesaved-controls select {
+    background: #1e1e1e; color: #e0e0e0; border: 1px solid #3a3a3c;
+    border-radius: 4px; padding: 3px 6px; font-size: 12px; cursor: pointer;
+    outline: none;
+  }
+  .timesaved-basis {
+    font-size: 10.5px; color: #8e8e93; margin-top: 6px; line-height: 1.35;
+  }
+
   .update-row {
     background: #2c2c2e; border-radius: 6px; padding: 10px 12px;
     display: flex; flex-direction: column; gap: 6px;
@@ -80,54 +110,73 @@
 </style>
 </head>
 <body>
-<h1>DM Voice</h1>
+<h1 data-i18n="settings.title">DM Voice</h1>
 
 <div class="field">
-  <label>Shortcut</label>
-  <div class="shortcut-box" id="shortcut-box">Klicken zum Ändern</div>
+  <label data-i18n="settings.shortcut.label">Shortcut</label>
+  <div class="shortcut-box" id="shortcut-box" data-i18n="settings.shortcut.placeholder">Click to change</div>
 </div>
 
 <div class="field">
-  <label>Sounds</label>
+  <label data-i18n="settings.sounds.label">Sounds</label>
   <div class="toggle-row">
-    <span class="toggle-label">Töne abspielen</span>
+    <span class="toggle-label" data-i18n="settings.sounds.toggle">Play sounds</span>
     <input type="checkbox" id="sounds-toggle">
   </div>
 </div>
 
 <div class="field">
-  <label>Berechtigungen</label>
+  <label data-i18n="settings.timesaved.label">Time Saved</label>
+  <div class="timesaved-card">
+    <div class="timesaved-main">
+      <div class="timesaved-minutes" id="timesaved-minutes">—</div>
+      <div class="timesaved-subtitle" id="timesaved-subtitle"></div>
+    </div>
+    <div class="timesaved-controls">
+      <span class="typing-speed-label" data-i18n="settings.timesaved.typingSpeed">Typing speed:</span>
+      <select id="typing-speed-select">
+        <option value="beginner" data-i18n="settings.timesaved.preset.beginner">Beginner (24 WPM)</option>
+        <option value="average" data-i18n="settings.timesaved.preset.average">Average (40 WPM)</option>
+        <option value="fast" data-i18n="settings.timesaved.preset.fast">Fast (60 WPM)</option>
+      </select>
+    </div>
+    <div class="timesaved-basis" id="timesaved-basis"></div>
+  </div>
+</div>
+
+<div class="field">
+  <label data-i18n="settings.permissions.label">Permissions</label>
   <div id="perm-list">
     <div class="perm-row" id="perm-mic">
-      <div class="perm-name">Mikrofon</div>
+      <div class="perm-name" data-i18n="settings.permissions.microphone">Microphone</div>
       <span class="perm-status unknown">…</span>
-      <button class="subtle">Öffnen</button>
+      <button class="subtle" data-i18n="settings.permissions.action.open">Open</button>
     </div>
     <div class="perm-row" id="perm-ax">
-      <div class="perm-name">Bedienungshilfen</div>
+      <div class="perm-name" data-i18n="settings.permissions.accessibility">Accessibility</div>
       <span class="perm-status unknown">…</span>
-      <button class="subtle">Öffnen</button>
+      <button class="subtle" data-i18n="settings.permissions.action.open">Open</button>
     </div>
   </div>
 </div>
 
 <div class="field">
-  <label>Modelle</label>
+  <label data-i18n="settings.models.label">Models</label>
   <div id="model-list"></div>
 </div>
 
 <div class="field">
-  <label>Updates</label>
+  <label data-i18n="settings.updates.label">Updates</label>
   <div class="update-row">
     <div class="update-line">
       <div class="update-version" id="update-version">Version …</div>
-      <button class="subtle" id="update-check-btn">Auf Updates prüfen</button>
+      <button class="subtle" id="update-check-btn" data-i18n="settings.updates.check">Check for updates</button>
     </div>
-    <div class="update-meta" id="update-status">Noch nicht geprüft.</div>
+    <div class="update-meta" id="update-status" data-i18n="settings.updates.notChecked">Not checked yet.</div>
     <div class="update-notes" id="update-notes" style="display:none"></div>
     <div class="update-line" id="update-install-line" style="display:none">
-      <div class="update-meta" id="update-progress-text" style="flex:1">Bereit.</div>
-      <button id="update-install-btn">Installieren &amp; neu starten</button>
+      <div class="update-meta" id="update-progress-text" style="flex:1" data-i18n="settings.updates.ready">Ready.</div>
+      <button id="update-install-btn" data-i18n="settings.updates.installBtn">Install &amp; restart</button>
     </div>
     <div class="progress" id="update-progress" style="display:none">
       <div class="progress-bar" id="update-progress-bar"></div>
@@ -135,6 +184,7 @@
   </div>
 </div>
 
+<script src="../i18n/i18n.js"></script>
 <script src="settings.js"></script>
 </body>
 </html>
