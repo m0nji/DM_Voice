@@ -670,22 +670,66 @@ fn build_tray_menu(
 /// Show (or create) the settings window. Called from the tray menu's
 /// "Settings…" item — the tray-icon click itself just opens the menu,
 /// matching macOS status-bar conventions.
+///
+/// Agent apps (LSUIElement=true) don't auto-activate when a window is shown —
+/// `[NSApp activateIgnoringOtherApps:YES]` is required before show/focus or
+/// the window stays behind whatever app currently has the keyboard. We do not
+/// touch the dictation/injection path here; paste targeting still resolves
+/// via `frontmost_app_pid` captured at shortcut-press time, which already
+/// excludes DM Voice's own PID.
 fn show_settings_window(app: &AppHandle) {
+    activate_app_macos();
     if let Some(w) = app.get_webview_window("settings") {
+        let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
-    } else {
-        let _ = tauri::WebviewWindowBuilder::new(
-            app,
-            "settings",
-            tauri::WebviewUrl::App("settings/index.html".into()),
-        )
-        .title("DM Voice")
-        .inner_size(320.0, 830.0)
-        .resizable(false)
-        .build();
+    } else if let Ok(w) = tauri::WebviewWindowBuilder::new(
+        app,
+        "settings",
+        tauri::WebviewUrl::App("settings/index.html".into()),
+    )
+    .title("DM Voice")
+    .inner_size(320.0, 830.0)
+    .resizable(false)
+    .build()
+    {
+        let _ = w.show();
+        let _ = w.set_focus();
     }
 }
+
+/// Bring the agent app (LSUIElement) to the foreground so a newly shown
+/// window can actually receive keyboard focus and z-order. Calls
+/// `[[NSApplication sharedApplication] activateIgnoringOtherApps:YES]`.
+#[cfg(target_os = "macos")]
+fn activate_app_macos() {
+    use std::ffi::c_void;
+    extern "C" {
+        fn sel_registerName(name: *const u8) -> *mut c_void;
+        fn objc_msgSend(recv: *mut c_void, sel: *mut c_void, ...) -> *mut c_void;
+        fn objc_getClass(name: *const u8) -> *mut c_void;
+    }
+    unsafe {
+        let cls = objc_getClass(b"NSApplication\0".as_ptr());
+        if cls.is_null() {
+            return;
+        }
+        let shared_sel = sel_registerName(b"sharedApplication\0".as_ptr());
+        type MsgIdNoArg = unsafe extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void;
+        let shared: MsgIdNoArg = std::mem::transmute(objc_msgSend as *const ());
+        let ns_app = shared(cls, shared_sel);
+        if ns_app.is_null() {
+            return;
+        }
+        let activate_sel = sel_registerName(b"activateIgnoringOtherApps:\0".as_ptr());
+        type MsgSetBool = unsafe extern "C" fn(*mut c_void, *mut c_void, bool);
+        let activate: MsgSetBool = std::mem::transmute(objc_msgSend as *const ());
+        activate(ns_app, activate_sel, true);
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn activate_app_macos() {}
 
 /// Read the current autostart state. Plugin returns false on error, which is
 /// the right default for the checkmark.
