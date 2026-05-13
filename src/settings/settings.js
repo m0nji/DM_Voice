@@ -14,6 +14,7 @@ const PRESET_WPM = { beginner: 24, average: 40, fast: 60 };
   initShortcut();
   initSounds();
   initTimesaved();
+  initVocabulary();
   initModels();
   initPermissions();
   initUpdates();
@@ -85,6 +86,57 @@ function initSounds() {
   });
   soundsToggle.addEventListener('change', () => {
     invoke('set_sounds_enabled', { enabled: soundsToggle.checked });
+  });
+}
+
+// ─── Custom Vocabulary ─────────────────────────────────────────────────────
+function initVocabulary() {
+  const textarea = document.getElementById('vocab-textarea');
+  const statusEl = document.getElementById('vocab-status');
+  let lastSavedValue = '';
+  let saveTimer = null;
+
+  function currentWords() {
+    return textarea.value
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+  }
+
+  function showSaved() {
+    statusEl.classList.add('visible');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => statusEl.classList.remove('visible'), 1500);
+  }
+
+  async function save() {
+    const words = currentWords();
+    // Normalize on the JS side so we can compare against last-saved without
+    // a roundtrip — avoids a save when the user just whitespace-noodled.
+    const normalized = words.join('\n');
+    if (normalized === lastSavedValue) return;
+    try {
+      await invoke('set_custom_vocabulary', { words });
+      lastSavedValue = normalized;
+      showSaved();
+    } catch (e) {
+      console.error('set_custom_vocabulary failed', e);
+    }
+  }
+
+  invoke('get_config').then(cfg => {
+    const list = Array.isArray(cfg.custom_vocabulary) ? cfg.custom_vocabulary : [];
+    textarea.value = list.join('\n');
+    lastSavedValue = list.join('\n');
+  });
+
+  textarea.addEventListener('blur', save);
+  // Cmd/Ctrl+Enter to save explicitly without leaving the field.
+  textarea.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      save();
+    }
   });
 }
 

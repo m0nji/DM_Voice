@@ -95,6 +95,38 @@
     font-size: 10.5px; color: #8e8e93; margin-top: 6px; line-height: 1.35;
   }
 
+  /* Custom Vocabulary */
+  .vocab-textarea {
+    width: 100%;
+    min-height: 78px;
+    max-height: 220px;
+    background: #2c2c2e;
+    border: 1px solid #3a3a3c;
+    border-radius: 6px;
+    padding: 8px 10px;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 12px;
+    line-height: 1.4;
+    resize: vertical;
+    outline: none;
+  }
+  .vocab-textarea:focus { border-color: #0a84ff; }
+  .vocab-hint {
+    font-size: 10.5px;
+    color: #8e8e93;
+    margin-top: 4px;
+    line-height: 1.35;
+  }
+  .vocab-status {
+    font-size: 10.5px;
+    color: #30d158;
+    margin-top: 4px;
+    opacity: 0;
+    transition: opacity 200ms;
+  }
+  .vocab-status.visible { opacity: 1; }
+
   .update-row {
     background: #2c2c2e; border-radius: 6px; padding: 10px 12px;
     display: flex; flex-direction: column; gap: 6px;
@@ -159,6 +191,23 @@
       <button class="subtle" data-i18n="settings.permissions.action.open">Open</button>
     </div>
   </div>
+</div>
+
+<div class="field">
+  <label data-i18n="settings.vocabulary.label">Custom Vocabulary</label>
+  <textarea
+    id="vocab-textarea"
+    class="vocab-textarea"
+    spellcheck="false"
+    autocomplete="off"
+    autocorrect="off"
+    autocapitalize="off"
+    data-i18n-attr="placeholder:settings.vocabulary.placeholder"
+    placeholder="One term per line…"></textarea>
+  <div class="vocab-hint" data-i18n="settings.vocabulary.hint">
+    One term per line. Names, technical terms and acronyms Whisper tends to mishear. Saves on focus loss.
+  </div>
+  <div class="vocab-status" id="vocab-status" data-i18n="settings.vocabulary.saved">Saved</div>
 </div>
 
 <div class="field">

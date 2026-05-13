@@ -32,6 +32,11 @@
   "settings.permissions.action.request": "Request",
   "settings.permissions.action.open": "Open",
 
+  "settings.vocabulary.label": "Custom Vocabulary",
+  "settings.vocabulary.placeholder": "One term per line…",
+  "settings.vocabulary.hint": "One term per line. Names, technical terms and acronyms Whisper tends to mishear. Saves on focus loss.",
+  "settings.vocabulary.saved": "Saved",
+
   "settings.models.label": "Models",
   "settings.models.delete": "Delete",
   "settings.models.download": "Download",

@@ -14,7 +14,7 @@ mod transcriber;
 mod updater;
 
 use audio::{audio_stats, AudioCapture, TARGET_SAMPLE_RATE};
-use config::{load_config, save_config, AppConfig, TypingSpeedPreset};
+use config::{build_vocabulary_prompt, load_config, save_config, AppConfig, TypingSpeedPreset};
 use stats::{MonthStatsPayload, UsageStats};
 use models::ModelInfo;
 use std::sync::{Arc, Mutex};
@@ -100,6 +100,30 @@ fn set_sounds_enabled(enabled: bool, state: State<'_, SharedState>) {
     let mut cfg = state.config.lock().unwrap();
     cfg.sounds_enabled = enabled;
     let _ = save_config(&cfg);
+}
+
+#[tauri::command]
+fn set_custom_vocabulary(
+    words: Vec<String>,
+    state: State<'_, SharedState>,
+) -> Result<(), String> {
+    // Normalize: trim, drop empties + duplicates (case-insensitive), keep order.
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut cleaned: Vec<String> = Vec::new();
+    for w in words {
+        let term = w.trim().to_string();
+        if term.is_empty() {
+            continue;
+        }
+        let key = term.to_lowercase();
+        if seen.insert(key) {
+            cleaned.push(term);
+        }
+    }
+    let mut cfg = state.config.lock().unwrap();
+    cfg.custom_vocabulary = cleaned;
+    save_config(&cfg).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -443,13 +467,20 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
         }
         show_overlay(&app, "processing");
         let t_proc_start = Instant::now();
+        let vocab_prompt = {
+            let cfg = state.config.lock().unwrap();
+            build_vocabulary_prompt(&cfg.custom_vocabulary)
+        };
+        if let Some(ref p) = vocab_prompt {
+            dlog!("Using custom-vocabulary prompt ({} chars)", p.len());
+        }
         let text = {
             let t = state.transcriber.lock().unwrap();
             if t.is_none() {
                 dlog!("Transcriber not loaded — model missing?");
             }
             t.as_ref()
-                .and_then(|t| t.transcribe(&buffer).ok())
+                .and_then(|t| t.transcribe(&buffer, vocab_prompt.as_deref()).ok())
                 .unwrap_or_default()
         };
         let processing_s = t_proc_start.elapsed().as_secs_f32();
@@ -796,6 +827,7 @@ fn main() {
             set_shortcut,
             set_sounds_enabled,
             set_typing_speed_preset,
+            set_custom_vocabulary,
             get_current_month_stats,
             list_models,
             delete_model,

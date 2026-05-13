@@ -35,6 +35,8 @@ pub struct AppConfig {
     pub sounds_enabled: bool,
     #[serde(default)]
     pub typing_speed_preset: TypingSpeedPreset,
+    #[serde(default)]
+    pub custom_vocabulary: Vec<String>,
 }
 
 impl Default for AppConfig {
@@ -44,7 +46,39 @@ impl Default for AppConfig {
             model_name: "large-v3-turbo".to_string(),
             sounds_enabled: default_sounds_enabled(),
             typing_speed_preset: TypingSpeedPreset::default(),
+            custom_vocabulary: Vec::new(),
         }
+    }
+}
+
+/// Build the initial-prompt string fed to Whisper for vocabulary biasing.
+///
+/// Whisper's `initial_prompt` is capped at ~224 tokens; going over silently
+/// truncates from the FRONT, dropping the user's terms. We conservatively cap
+/// at ~600 characters (Whisper's BPE tokenizer averages ~3–4 chars/token across
+/// German/English), so even worst-case single-char tokens (e.g. CJK) stay
+/// within budget.
+///
+/// Returns `None` when the resulting prompt would be empty.
+pub fn build_vocabulary_prompt(words: &[String]) -> Option<String> {
+    const MAX_PROMPT_CHARS: usize = 600;
+    let mut buf = String::new();
+    for raw in words {
+        let term = raw.trim();
+        if term.is_empty() || term.contains('\0') {
+            continue;
+        }
+        let sep = if buf.is_empty() { "" } else { ", " };
+        if buf.len() + sep.len() + term.len() > MAX_PROMPT_CHARS {
+            break;
+        }
+        buf.push_str(sep);
+        buf.push_str(term);
+    }
+    if buf.is_empty() {
+        None
+    } else {
+        Some(buf)
     }
 }
 
@@ -103,6 +137,7 @@ mod tests {
                 model_name: "small".to_string(),
                 sounds_enabled: false,
                 typing_speed_preset: TypingSpeedPreset::Fast,
+                custom_vocabulary: vec!["Tauri".into(), "whisper-rs".into()],
             };
             let contents = toml::to_string(&cfg).unwrap();
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -118,5 +153,43 @@ mod tests {
     fn load_returns_default_when_missing() {
         let result: AppConfig = toml::from_str("").unwrap_or_default();
         assert_eq!(result.shortcut, AppConfig::default().shortcut);
+    }
+
+    #[test]
+    fn build_vocab_prompt_empty_list_returns_none() {
+        assert!(build_vocabulary_prompt(&[]).is_none());
+    }
+
+    #[test]
+    fn build_vocab_prompt_skips_blanks_and_nulls() {
+        let words = vec![
+            "  ".into(),
+            "Tauri".into(),
+            "".into(),
+            "with\0null".into(),
+            "whisper-rs".into(),
+        ];
+        assert_eq!(
+            build_vocabulary_prompt(&words),
+            Some("Tauri, whisper-rs".into())
+        );
+    }
+
+    #[test]
+    fn build_vocab_prompt_trims_terms() {
+        let words = vec!["  Hello  ".into(), "\tWorld\n".into()];
+        assert_eq!(
+            build_vocabulary_prompt(&words),
+            Some("Hello, World".into())
+        );
+    }
+
+    #[test]
+    fn build_vocab_prompt_caps_at_max_chars() {
+        // 100 words × ~10 chars ≈ 1100 chars; cap is 600 → should truncate.
+        let words: Vec<String> = (0..100).map(|i| format!("word{:04}", i)).collect();
+        let prompt = build_vocabulary_prompt(&words).unwrap();
+        assert!(prompt.len() <= 600, "prompt was {} chars", prompt.len());
+        assert!(prompt.starts_with("word0000"));
     }
 }

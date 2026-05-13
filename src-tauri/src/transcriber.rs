@@ -19,7 +19,7 @@ impl WhisperTranscriber {
         Ok(Self { ctx })
     }
 
-    pub fn transcribe(&self, audio: &[f32]) -> Result<String> {
+    pub fn transcribe(&self, audio: &[f32], initial_prompt: Option<&str>) -> Result<String> {
         let mut state = self.ctx.create_state()?;
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(Some("de"));
@@ -35,6 +35,13 @@ impl WhisperTranscriber {
         params.set_print_special(false);
         params.set_suppress_blank(true);
         params.set_suppress_nst(true);
+        if let Some(prompt) = initial_prompt {
+            // whisper-rs panics on null bytes; callers should pre-filter via
+            // config::build_vocabulary_prompt, but guard here too.
+            if !prompt.is_empty() && !prompt.contains('\0') {
+                params.set_initial_prompt(prompt);
+            }
+        }
         state.full(params, audio)?;
         let n = state.full_n_segments();
         let mut text = String::new();
@@ -86,7 +93,7 @@ mod tests {
         let model = std::env::var("WHISPER_MODEL").expect("set WHISPER_MODEL");
         let t = WhisperTranscriber::new(&PathBuf::from(model)).unwrap();
         let silence = vec![0.0f32; 16_000];
-        let result = t.transcribe(&silence).unwrap();
+        let result = t.transcribe(&silence, None).unwrap();
         assert!(result.is_empty() || result.len() < 10);
     }
 
