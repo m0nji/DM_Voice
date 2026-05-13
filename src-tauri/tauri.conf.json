@@ -1,6 +1,6 @@
 {
   "productName": "DM Voice",
-  "version": "0.3.9",
+  "version": "0.4.0",
   "identifier": "de.dmvoice.app",
   "build": {
     "frontendDist": "../src"
