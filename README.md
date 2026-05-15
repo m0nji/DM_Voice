@@ -8,7 +8,7 @@ Simple Push-to-Talk - Speech-to-Text app for macOS and Windows. Hold the hotkey 
 
 | Tray menu | Settings |
 |:---:|:---:|
-| <img src="assets/tray-menu.svg" alt="Tray menu with model picker, autostart toggle and settings" width="320"> | <img src="assets/settings.svg" alt="Settings window with hotkey, permissions and model management" width="320"> |
+| <img src="assets/tray-menu.svg" alt="Tray menu with update check, model picker, autostart toggle and settings" width="320"> | <img src="assets/settings.svg" alt="Settings window with hotkey, sounds, time-saved stats, permissions, custom vocabulary, model management and updates" width="320"> |
 
 > These mockups mirror the actual UI in structure and behavior. Minor visual differences from the real app may stem from the macOS renderer and the user's accent color choice.
 

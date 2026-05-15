@@ -158,5 +158,5 @@
   </g>
 
   <!-- bottom caption -->
-  <text x="360" y="408" text-anchor="middle" fill="#98989d" font-size="11" font-family="-apple-system, system-ui, sans-serif">DM Voice — Push-to-Talk Speech-to-Text for macOS</text>
+  <text x="360" y="408" text-anchor="middle" fill="#98989d" font-size="11" font-family="-apple-system, system-ui, sans-serif">DM Voice 0.4.0 — Push-to-Talk Speech-to-Text for macOS &amp; Windows</text>
 </svg>
