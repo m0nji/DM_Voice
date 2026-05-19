@@ -626,7 +626,7 @@ fn build_tray_menu(
     cfg: &AppConfig,
     update: &updater::UpdateState,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
-    use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+    use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 
     let header = MenuItem::with_id(
         app,
@@ -677,49 +677,49 @@ fn build_tray_menu(
     }
     let sep_mic = PredefinedMenuItem::separator(app)?;
 
-    // Microphone submenu — populated fresh on every menu rebuild so newly
-    // connected devices appear without an app restart. The selected device is
-    // persisted as a name; `None` means "follow the system default".
+    // Microphone section — flat layout mirroring the Model section above.
+    // We previously rendered this as a Submenu, but on macOS muda 0.16's
+    // submenu items hit an AppKit cache-miss path on first hover that
+    // dismisses the parent NSMenu without warning (looks to the user like
+    // a crash + relaunch). Flat layout side-steps that path entirely.
+    let mic_header = MenuItem::with_id(app, "mic_header", "Microphone", false, None::<&str>)?;
     let mic_default = CheckMenuItem::with_id(
         app,
         "mic:default",
-        "System default",
+        "  System default",
         true,
         cfg.input_device.is_none(),
         None::<&str>,
     )?;
-    let mic_sep = PredefinedMenuItem::separator(app)?;
     let devices = audio::list_input_devices();
     let mut mic_device_items: Vec<CheckMenuItem<tauri::Wry>> = Vec::new();
     for name in &devices {
         let id = format!("mic:{}", name);
         let checked = cfg.input_device.as_deref() == Some(name.as_str());
-        let item = CheckMenuItem::with_id(app, &id, name, true, checked, None::<&str>)?;
+        let item = CheckMenuItem::with_id(
+            app,
+            &id,
+            format!("  {}", name),
+            true,
+            checked,
+            None::<&str>,
+        )?;
         mic_device_items.push(item);
     }
-    // If the saved device isn't currently present, show it as a disabled,
-    // unchecked row so the user can see which preference will reactivate when
-    // the device comes back.
+    // If the saved device isn't currently present, show it as a disabled
+    // row so the user can see which preference will reactivate when the
+    // device comes back.
     let missing_item: Option<CheckMenuItem<tauri::Wry>> = match cfg.input_device.as_deref() {
         Some(name) if !devices.iter().any(|d| d == name) => Some(CheckMenuItem::with_id(
             app,
             format!("mic:{}", name),
-            format!("{}  (not connected)", name),
+            format!("  {}  (not connected)", name),
             false,
             true,
             None::<&str>,
         )?),
         _ => None,
     };
-
-    let mut mic_refs: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&mic_default, &mic_sep];
-    for it in &mic_device_items {
-        mic_refs.push(it);
-    }
-    if let Some(it) = missing_item.as_ref() {
-        mic_refs.push(it);
-    }
-    let mic_submenu = Submenu::with_id_and_items(app, "mic_submenu", "Microphone", true, &mic_refs)?;
 
     let sep2 = PredefinedMenuItem::separator(app)?;
     let settings_item = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
@@ -746,7 +746,14 @@ fn build_tray_menu(
         refs.push(it);
     }
     refs.push(&sep_mic);
-    refs.push(&mic_submenu);
+    refs.push(&mic_header);
+    refs.push(&mic_default);
+    for it in &mic_device_items {
+        refs.push(it);
+    }
+    if let Some(it) = missing_item.as_ref() {
+        refs.push(it);
+    }
     refs.push(&sep2);
     refs.push(&settings_item);
     refs.push(&autostart_item);
