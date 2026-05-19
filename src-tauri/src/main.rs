@@ -1070,26 +1070,16 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Periodically refresh the tray menu so the Microphone submenu
-            // reflects the currently connected input devices. We can't rebuild
-            // on tray-click without fighting macOS's menu-open animation
-            // (set_menu() mid-open dismisses the menu), so we keep the menu
-            // "warm" with a 3 s cadence instead — cpal enumeration is cheap
-            // (≤ ~50 ms) and the staleness window is short enough that users
-            // who plug in a device and reach for the menu will see it.
-            let app_for_refresh = app.handle().clone();
-            let state_for_refresh = Arc::clone(&state);
-            tauri::async_runtime::spawn(async move {
-                let mut last: Vec<String> = audio::list_input_devices();
-                loop {
-                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                    let now = audio::list_input_devices();
-                    if now != last {
-                        last = now;
-                        rebuild_tray_menu(&app_for_refresh, &state_for_refresh);
-                    }
-                }
-            });
+            // Note: we intentionally do not auto-refresh the tray menu for
+            // newly-connected input devices. Tauri 2 has no "menu will open"
+            // hook on macOS, and rebuilding the menu from a background thread
+            // calls `set_menu()` which dismisses the in-flight NSMenu if the
+            // user happens to be opening it at that moment — observed as the
+            // menu flickering shut on first launch. The device list is rebuilt
+            // every time the menu is reconstructed for another reason (mic /
+            // model / autostart toggle, update check), which covers the
+            // typical workflow. If a device is hot-plugged with no other
+            // interaction, the user sees it after the next menu action.
 
             // Register global shortcut
             let shortcut = state.config.lock().unwrap().shortcut.clone();
