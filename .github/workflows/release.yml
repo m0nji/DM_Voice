@@ -31,6 +31,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history + tags so the changelog step can diff against
+          # the previous tag.
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: notes
+        # Auto-generate the release body from git log between the
+        # previous tag and the current one. Both build jobs run the same
+        # script so they produce identical bodies — tauri-action would
+        # otherwise race-overwrite each other's release text.
+        shell: bash
+        run: |
+          body="$(.github/scripts/release-notes.sh "${GITHUB_REF_NAME}")"
+          {
+            echo 'body<<RELEASE_NOTES_EOF'
+            echo "$body"
+            echo 'RELEASE_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -91,24 +110,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "DM Voice ${{ github.ref_name }}"
-          releaseBody: |
-            Automatischer Release-Build.
-
-            **macOS (Apple Silicon)**: DMG öffnen, App nach `~/Applications`
-            ziehen. Beim ersten Start Mikrofon- und Bedienungshilfen-
-            Permissions erteilen. Die App ist Apple-notarisiert — kein
-            "Rechtsklick → Öffnen" mehr nötig, und Permissions überleben
-            Updates.
-
-            **Windows (x86_64, GPU-beschleunigt via Vulkan)**: NSIS-Installer
-            ausführen. Beim ersten Start zeigt Windows SmartScreen
-            möglicherweise eine Warnung — "Weitere Informationen → Trotzdem
-            ausführen". GPU-Beschleunigung funktioniert auf NVIDIA, AMD und
-            Intel Arc/Xe out-of-the-box (Vulkan-Treiber sind im GPU-Treiber
-            enthalten).
-
-            Bestehende Installationen aktualisieren sich automatisch über
-            den eingebauten Updater (Tray → "Auf Updates prüfen…").
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
@@ -133,6 +135,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history + tags so the changelog step can diff against
+          # the previous tag.
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: notes
+        # Same body as build-macos so tauri-action doesn't race the two
+        # jobs' release-body writes against each other.
+        shell: bash
+        run: |
+          body="$(.github/scripts/release-notes.sh "${GITHUB_REF_NAME}")"
+          {
+            echo 'body<<RELEASE_NOTES_EOF'
+            echo "$body"
+            echo 'RELEASE_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -226,6 +245,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "DM Voice ${{ github.ref_name }}"
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }} --bundles nsis updater
