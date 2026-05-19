@@ -84,6 +84,18 @@ pub fn resample(input: &[f32], from_rate: u32, to_rate: u32) -> Result<Vec<f32>>
     Ok(output)
 }
 
+/// Enumerate input devices known to cpal's default host. Returns just the
+/// names — cpal does not expose CoreAudio UIDs directly, but on macOS the
+/// device names are stable enough for re-selection across restarts. Devices
+/// that fail to report a name are silently skipped.
+pub fn list_input_devices() -> Vec<String> {
+    let host = cpal::default_host();
+    match host.input_devices() {
+        Ok(iter) => iter.filter_map(|d| d.name().ok()).collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
 pub struct AudioCapture {
     buffer: Arc<Mutex<Vec<f32>>>,
     amplitude: Arc<Mutex<f32>>,
@@ -103,10 +115,18 @@ impl AudioCapture {
         }
     }
 
-    pub fn start(&mut self) -> Result<()> {
+    /// Start capture, preferring the named input device. Falls back to the
+    /// system default when `preferred` is `None`, when the named device is no
+    /// longer present, or when it fails to expose an input config.
+    pub fn start_with_device(&mut self, preferred: Option<&str>) -> Result<()> {
         let host = cpal::default_host();
-        let device = host
-            .default_input_device()
+        let device = preferred
+            .and_then(|name| {
+                host.input_devices().ok().and_then(|mut iter| {
+                    iter.find(|d| d.name().ok().as_deref() == Some(name))
+                })
+            })
+            .or_else(|| host.default_input_device())
             .ok_or_else(|| anyhow::anyhow!("No microphone found"))?;
         let supported = device.default_input_config()?;
         let sample_rate = supported.sample_rate().0;

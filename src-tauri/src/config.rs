@@ -37,6 +37,13 @@ pub struct AppConfig {
     pub typing_speed_preset: TypingSpeedPreset,
     #[serde(default)]
     pub custom_vocabulary: Vec<String>,
+    /// Preferred input device name (as reported by cpal). `None` means
+    /// "follow the system default". If the saved name is no longer available
+    /// at capture time, capture falls back to the system default but the
+    /// preference is kept so the device gets picked up automatically when it
+    /// reappears.
+    #[serde(default)]
+    pub input_device: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -47,6 +54,7 @@ impl Default for AppConfig {
             sounds_enabled: default_sounds_enabled(),
             typing_speed_preset: TypingSpeedPreset::default(),
             custom_vocabulary: Vec::new(),
+            input_device: None,
         }
     }
 }
@@ -138,6 +146,7 @@ mod tests {
                 sounds_enabled: false,
                 typing_speed_preset: TypingSpeedPreset::Fast,
                 custom_vocabulary: vec!["Tauri".into(), "whisper-rs".into()],
+                input_device: Some("MacBook Pro Microphone".into()),
             };
             let contents = toml::to_string(&cfg).unwrap();
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();

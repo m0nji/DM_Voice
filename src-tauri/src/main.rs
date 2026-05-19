@@ -538,13 +538,23 @@ fn on_shortcut_pressed(app: &AppHandle, state: &SharedState) {
     *state.frontmost_pid.lock().unwrap() = pid;
     dlog!("on_shortcut_pressed: captured frontmost_pid={:?}", pid);
 
-    let sounds_enabled = state.config.lock().unwrap().sounds_enabled;
+    let (sounds_enabled, preferred_device) = {
+        let cfg = state.config.lock().unwrap();
+        (cfg.sounds_enabled, cfg.input_device.clone())
+    };
     sounds::play_start(sounds_enabled);
 
     let mut audio = state.audio.lock().unwrap();
-    if audio.start().is_err() {
-        dlog!("on_shortcut_pressed: audio.start() failed");
+    if let Err(e) = audio.start_with_device(preferred_device.as_deref()) {
+        dlog!(
+            "on_shortcut_pressed: audio.start() failed (preferred={:?}): {}",
+            preferred_device,
+            e
+        );
         return;
+    }
+    if let Some(name) = preferred_device.as_deref() {
+        dlog!("on_shortcut_pressed: requested input device={}", name);
     }
     *state.recording_start.lock().unwrap() = Some(Instant::now());
     *state.auto_stop.lock().unwrap() = false;
@@ -616,7 +626,7 @@ fn build_tray_menu(
     cfg: &AppConfig,
     update: &updater::UpdateState,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
-    use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
+    use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 
     let header = MenuItem::with_id(
         app,
@@ -665,6 +675,52 @@ fn build_tray_menu(
         let item = CheckMenuItem::with_id(app, &id, &label, m.installed, checked, None::<&str>)?;
         model_items.push(item);
     }
+    let sep_mic = PredefinedMenuItem::separator(app)?;
+
+    // Microphone submenu — populated fresh on every menu rebuild so newly
+    // connected devices appear without an app restart. The selected device is
+    // persisted as a name; `None` means "follow the system default".
+    let mic_default = CheckMenuItem::with_id(
+        app,
+        "mic:default",
+        "System default",
+        true,
+        cfg.input_device.is_none(),
+        None::<&str>,
+    )?;
+    let mic_sep = PredefinedMenuItem::separator(app)?;
+    let devices = audio::list_input_devices();
+    let mut mic_device_items: Vec<CheckMenuItem<tauri::Wry>> = Vec::new();
+    for name in &devices {
+        let id = format!("mic:{}", name);
+        let checked = cfg.input_device.as_deref() == Some(name.as_str());
+        let item = CheckMenuItem::with_id(app, &id, name, true, checked, None::<&str>)?;
+        mic_device_items.push(item);
+    }
+    // If the saved device isn't currently present, show it as a disabled,
+    // unchecked row so the user can see which preference will reactivate when
+    // the device comes back.
+    let missing_item: Option<CheckMenuItem<tauri::Wry>> = match cfg.input_device.as_deref() {
+        Some(name) if !devices.iter().any(|d| d == name) => Some(CheckMenuItem::with_id(
+            app,
+            format!("mic:{}", name),
+            format!("{}  (not connected)", name),
+            false,
+            true,
+            None::<&str>,
+        )?),
+        _ => None,
+    };
+
+    let mut mic_refs: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&mic_default, &mic_sep];
+    for it in &mic_device_items {
+        mic_refs.push(it);
+    }
+    if let Some(it) = missing_item.as_ref() {
+        mic_refs.push(it);
+    }
+    let mic_submenu = Submenu::with_id_and_items(app, "mic_submenu", "Microphone", true, &mic_refs)?;
+
     let sep2 = PredefinedMenuItem::separator(app)?;
     let settings_item = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let autostart_enabled = autostart_is_enabled(app);
@@ -689,6 +745,8 @@ fn build_tray_menu(
     for it in &model_items {
         refs.push(it);
     }
+    refs.push(&sep_mic);
+    refs.push(&mic_submenu);
     refs.push(&sep2);
     refs.push(&settings_item);
     refs.push(&autostart_item);
@@ -971,6 +1029,19 @@ fn main() {
                                 Err(e) => dlog!("[updater] menu install err: {}", e),
                             }
                         });
+                    } else if let Some(rest) = id.strip_prefix("mic:") {
+                        let chosen: Option<String> = if rest == "default" {
+                            None
+                        } else {
+                            Some(rest.to_string())
+                        };
+                        {
+                            let mut cfg = state_for_menu.config.lock().unwrap();
+                            cfg.input_device = chosen.clone();
+                            let _ = save_config(&cfg);
+                        }
+                        dlog!("tray: input device set to {:?}", chosen);
+                        rebuild_tray_menu(app, &state_for_menu);
                     } else if let Some(model_name) = id.strip_prefix("model:") {
                         let app2 = app.clone();
                         let state2 = Arc::clone(&state_for_menu);
@@ -998,6 +1069,27 @@ fn main() {
                     }
                 })
                 .build(app)?;
+
+            // Periodically refresh the tray menu so the Microphone submenu
+            // reflects the currently connected input devices. We can't rebuild
+            // on tray-click without fighting macOS's menu-open animation
+            // (set_menu() mid-open dismisses the menu), so we keep the menu
+            // "warm" with a 3 s cadence instead — cpal enumeration is cheap
+            // (≤ ~50 ms) and the staleness window is short enough that users
+            // who plug in a device and reach for the menu will see it.
+            let app_for_refresh = app.handle().clone();
+            let state_for_refresh = Arc::clone(&state);
+            tauri::async_runtime::spawn(async move {
+                let mut last: Vec<String> = audio::list_input_devices();
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                    let now = audio::list_input_devices();
+                    if now != last {
+                        last = now;
+                        rebuild_tray_menu(&app_for_refresh, &state_for_refresh);
+                    }
+                }
+            });
 
             // Register global shortcut
             let shortcut = state.config.lock().unwrap().shortcut.clone();
