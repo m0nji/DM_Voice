@@ -9,48 +9,77 @@
     font-size: 13px;
     background: #1e1e1e;
     color: #e0e0e0;
-    padding: 16px;
+    padding: 16px 20px 20px;
     width: 100%;
     overflow-x: hidden;
   }
-  h1 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #fff; }
-  .field { margin-bottom: 14px; }
-  label { display: block; font-size: 11px; color: #888; text-transform: uppercase;
-          letter-spacing: 0.5px; margin-bottom: 4px; }
+  h1 {
+    font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #fff;
+  }
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+    align-items: start;
+  }
+  .field { margin-bottom: 16px; }
+  .field:last-child { margin-bottom: 0; }
+  label {
+    display: block; font-size: 10.5px; color: #8e8e93;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin-bottom: 6px; font-weight: 500;
+  }
   .shortcut-box {
     background: #2c2c2e; border: 1px solid #3a3a3c; border-radius: 6px;
     padding: 6px 10px; cursor: pointer; user-select: none;
     color: #fff; font-size: 13px;
   }
   .shortcut-box.listening { border-color: #0a84ff; color: #0a84ff; }
-  .model-row { display: flex; justify-content: space-between; align-items: center;
-               padding: 6px 0; border-bottom: 1px solid #2c2c2e; }
-  .model-name { font-weight: 500; }
-  .model-meta { font-size: 11px; color: #888; }
-  button {
-    background: #0a84ff; border: none; border-radius: 5px; color: #fff;
-    padding: 4px 10px; font-size: 12px; cursor: pointer;
+
+  /* Model rows */
+  .model-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 0; border-bottom: 1px solid #2c2c2e; gap: 8px;
   }
-  button.danger { background: #ff453a; }
-  button.subtle { background: #2c2c2e; color: #e0e0e0; }
+  .model-row:last-child { border-bottom: none; }
+  .model-name { font-weight: 500; }
+  .model-meta { font-size: 11px; color: #8e8e93; }
+
+  button {
+    background: #2c2c2e; border: 1px solid #3a3a3c; border-radius: 5px;
+    color: #e0e0e0; padding: 4px 10px; font-size: 12px; cursor: pointer;
+    transition: background 120ms;
+  }
+  button:hover { background: #3a3a3c; }
+  button.primary { background: #0a84ff; border-color: #0a84ff; color: #fff; }
+  button.primary:hover { background: #0073e6; }
+  button.danger { background: transparent; border-color: #ff453a; color: #ff453a; }
+  button.danger:hover { background: rgba(255,69,58,0.12); }
+
   .progress { height: 4px; background: #3a3a3c; border-radius: 2px; margin-top: 4px; }
-  .progress-bar { height: 100%; background: #0a84ff; border-radius: 2px;
-                  width: 0%; transition: width 200ms; }
-  .perm-row { display: flex; align-items: center; padding: 6px 0;
-              border-bottom: 1px solid #2c2c2e; gap: 8px; }
+  .progress-bar {
+    height: 100%; background: #0a84ff; border-radius: 2px;
+    width: 0%; transition: width 200ms;
+  }
+
+  /* Permissions */
+  .perm-row {
+    display: flex; align-items: center; padding: 7px 0;
+    border-bottom: 1px solid #2c2c2e; gap: 10px;
+  }
   .perm-row:last-child { border-bottom: none; }
   .perm-name { flex: 1; font-weight: 500; }
-  .perm-status {
-    font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 500;
-  }
-  .perm-status.granted { background: rgba(48,209,88,0.18); color: #30d158; }
-  .perm-status.denied { background: rgba(255,69,58,0.18); color: #ff453a; }
-  .perm-status.not_determined { background: rgba(255,159,10,0.18); color: #ff9f0a; }
-  .perm-status.restricted { background: rgba(255,159,10,0.18); color: #ff9f0a; }
-  .perm-status.unknown { background: rgba(142,142,147,0.25); color: #aeaeb2; }
+  .perm-status { font-size: 11px; font-weight: 500; }
+  .perm-status.granted        { color: #30d158; }
+  .perm-status.denied         { color: #ff453a; }
+  .perm-status.not_determined { color: #8e8e93; }
+  .perm-status.restricted     { color: #8e8e93; }
+  .perm-status.unknown        { color: #8e8e93; }
+
+  /* Toggle */
   .toggle-row {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 6px 0;
+    padding: 4px 0;
   }
   .toggle-row .toggle-label { font-weight: 500; }
   .toggle-row input[type="checkbox"] {
@@ -68,19 +97,18 @@
 
   /* Time Saved card */
   .timesaved-card {
-    background: #2c2c2e; border-radius: 6px; padding: 12px 12px 10px;
+    background: #2c2c2e; border-radius: 6px; padding: 14px 14px 10px;
   }
   .timesaved-main { text-align: center; margin-bottom: 10px; }
   .timesaved-minutes {
-    font-size: 28px; font-weight: 700; color: #30d158;
-    line-height: 1.1;
+    font-size: 26px; font-weight: 700; color: #fff; line-height: 1.1;
   }
   .timesaved-subtitle {
-    font-size: 11px; color: #aeaeb2; margin-top: 2px;
+    font-size: 11px; color: #8e8e93; margin-top: 4px;
   }
   .timesaved-controls {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 8px; padding: 6px 0; border-top: 1px solid #1e1e1e;
+    gap: 8px; padding-top: 8px; border-top: 1px solid #1e1e1e;
   }
   .timesaved-controls .typing-speed-label {
     font-size: 11px; color: #aeaeb2; font-weight: 500;
@@ -92,14 +120,14 @@
     outline: none;
   }
   .timesaved-basis {
-    font-size: 10.5px; color: #8e8e93; margin-top: 6px; line-height: 1.35;
+    font-size: 10.5px; color: #8e8e93; margin-top: 8px; line-height: 1.4;
   }
 
   /* Custom Vocabulary */
   .vocab-textarea {
     width: 100%;
-    min-height: 78px;
-    max-height: 220px;
+    min-height: 110px;
+    max-height: 240px;
     background: #2c2c2e;
     border: 1px solid #3a3a3c;
     border-radius: 6px;
@@ -113,28 +141,23 @@
   }
   .vocab-textarea:focus { border-color: #0a84ff; }
   .vocab-hint {
-    font-size: 10.5px;
-    color: #8e8e93;
-    margin-top: 4px;
-    line-height: 1.35;
+    font-size: 10.5px; color: #8e8e93; margin-top: 6px; line-height: 1.4;
   }
   .vocab-status {
-    font-size: 10.5px;
-    color: #30d158;
-    margin-top: 4px;
-    opacity: 0;
-    transition: opacity 200ms;
+    font-size: 10.5px; color: #8e8e93; margin-top: 4px;
+    opacity: 0; transition: opacity 200ms;
   }
   .vocab-status.visible { opacity: 1; }
 
+  /* Updates */
   .update-row {
     background: #2c2c2e; border-radius: 6px; padding: 10px 12px;
     display: flex; flex-direction: column; gap: 6px;
   }
   .update-line { display: flex; align-items: center; gap: 8px; }
   .update-version { flex: 1; font-weight: 500; }
-  .update-meta { font-size: 11px; color: #888; }
-  .update-status.available { color: #30d158; font-weight: 500; }
+  .update-meta { font-size: 11px; color: #8e8e93; }
+  .update-status.available { color: #e0e0e0; font-weight: 500; }
   .update-status.error { color: #ff453a; }
   .update-notes {
     font-size: 11px; color: #aeaeb2; max-height: 100px; overflow-y: auto;
@@ -145,91 +168,97 @@
 <body>
 <h1 data-i18n="settings.title">DM Voice</h1>
 
-<div class="field">
-  <label data-i18n="settings.shortcut.label">Shortcut</label>
-  <div class="shortcut-box" id="shortcut-box" data-i18n="settings.shortcut.placeholder">Click to change</div>
-</div>
+<div class="columns">
+  <div class="col-left">
+    <div class="field">
+      <label data-i18n="settings.shortcut.label">Shortcut</label>
+      <div class="shortcut-box" id="shortcut-box" data-i18n="settings.shortcut.placeholder">Click to change</div>
+    </div>
 
-<div class="field">
-  <label data-i18n="settings.sounds.label">Sounds</label>
-  <div class="toggle-row">
-    <span class="toggle-label" data-i18n="settings.sounds.toggle">Play sounds</span>
-    <input type="checkbox" id="sounds-toggle">
+    <div class="field">
+      <label data-i18n="settings.sounds.label">Sounds</label>
+      <div class="toggle-row">
+        <span class="toggle-label" data-i18n="settings.sounds.toggle">Play sounds</span>
+        <input type="checkbox" id="sounds-toggle">
+      </div>
+    </div>
+
+    <div class="field">
+      <label data-i18n="settings.permissions.label">Permissions</label>
+      <div id="perm-list">
+        <div class="perm-row" id="perm-mic">
+          <div class="perm-name" data-i18n="settings.permissions.microphone">Microphone</div>
+          <span class="perm-status unknown">…</span>
+          <button data-i18n="settings.permissions.action.open">Open</button>
+        </div>
+        <div class="perm-row" id="perm-ax">
+          <div class="perm-name" data-i18n="settings.permissions.accessibility">Accessibility</div>
+          <span class="perm-status unknown">…</span>
+          <button data-i18n="settings.permissions.action.open">Open</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label data-i18n="settings.models.label">Models</label>
+      <div id="model-list"></div>
+    </div>
+
+    <div class="field">
+      <label data-i18n="settings.updates.label">Updates</label>
+      <div class="update-row">
+        <div class="update-line">
+          <div class="update-version" id="update-version">Version …</div>
+          <button id="update-check-btn" data-i18n="settings.updates.check">Check for updates</button>
+        </div>
+        <div class="update-meta" id="update-status" data-i18n="settings.updates.notChecked">Not checked yet.</div>
+        <div class="update-notes" id="update-notes" style="display:none"></div>
+        <div class="update-line" id="update-install-line" style="display:none">
+          <div class="update-meta" id="update-progress-text" style="flex:1" data-i18n="settings.updates.ready">Ready.</div>
+          <button class="primary" id="update-install-btn" data-i18n="settings.updates.installBtn">Install &amp; restart</button>
+        </div>
+        <div class="progress" id="update-progress" style="display:none">
+          <div class="progress-bar" id="update-progress-bar"></div>
+        </div>
+      </div>
+    </div>
   </div>
-</div>
 
-<div class="field">
-  <label data-i18n="settings.timesaved.label">Time Saved</label>
-  <div class="timesaved-card">
-    <div class="timesaved-main">
-      <div class="timesaved-minutes" id="timesaved-minutes">—</div>
-      <div class="timesaved-subtitle" id="timesaved-subtitle"></div>
+  <div class="col-right">
+    <div class="field">
+      <label data-i18n="settings.timesaved.label">Time Saved</label>
+      <div class="timesaved-card">
+        <div class="timesaved-main">
+          <div class="timesaved-minutes" id="timesaved-minutes">—</div>
+          <div class="timesaved-subtitle" id="timesaved-subtitle"></div>
+        </div>
+        <div class="timesaved-controls">
+          <span class="typing-speed-label" data-i18n="settings.timesaved.typingSpeed">Typing speed:</span>
+          <select id="typing-speed-select">
+            <option value="beginner" data-i18n="settings.timesaved.preset.beginner">Beginner (24 WPM)</option>
+            <option value="average" data-i18n="settings.timesaved.preset.average">Average (40 WPM)</option>
+            <option value="fast" data-i18n="settings.timesaved.preset.fast">Fast (60 WPM)</option>
+          </select>
+        </div>
+        <div class="timesaved-basis" id="timesaved-basis"></div>
+      </div>
     </div>
-    <div class="timesaved-controls">
-      <span class="typing-speed-label" data-i18n="settings.timesaved.typingSpeed">Typing speed:</span>
-      <select id="typing-speed-select">
-        <option value="beginner" data-i18n="settings.timesaved.preset.beginner">Beginner (24 WPM)</option>
-        <option value="average" data-i18n="settings.timesaved.preset.average">Average (40 WPM)</option>
-        <option value="fast" data-i18n="settings.timesaved.preset.fast">Fast (60 WPM)</option>
-      </select>
-    </div>
-    <div class="timesaved-basis" id="timesaved-basis"></div>
-  </div>
-</div>
 
-<div class="field">
-  <label data-i18n="settings.permissions.label">Permissions</label>
-  <div id="perm-list">
-    <div class="perm-row" id="perm-mic">
-      <div class="perm-name" data-i18n="settings.permissions.microphone">Microphone</div>
-      <span class="perm-status unknown">…</span>
-      <button class="subtle" data-i18n="settings.permissions.action.open">Open</button>
-    </div>
-    <div class="perm-row" id="perm-ax">
-      <div class="perm-name" data-i18n="settings.permissions.accessibility">Accessibility</div>
-      <span class="perm-status unknown">…</span>
-      <button class="subtle" data-i18n="settings.permissions.action.open">Open</button>
-    </div>
-  </div>
-</div>
-
-<div class="field">
-  <label data-i18n="settings.vocabulary.label">Custom Vocabulary</label>
-  <textarea
-    id="vocab-textarea"
-    class="vocab-textarea"
-    spellcheck="false"
-    autocomplete="off"
-    autocorrect="off"
-    autocapitalize="off"
-    data-i18n-attr="placeholder:settings.vocabulary.placeholder"
-    placeholder="One term per line…"></textarea>
-  <div class="vocab-hint" data-i18n="settings.vocabulary.hint">
-    One term per line. Names, technical terms and acronyms Whisper tends to mishear. Saves on focus loss.
-  </div>
-  <div class="vocab-status" id="vocab-status" data-i18n="settings.vocabulary.saved">Saved</div>
-</div>
-
-<div class="field">
-  <label data-i18n="settings.models.label">Models</label>
-  <div id="model-list"></div>
-</div>
-
-<div class="field">
-  <label data-i18n="settings.updates.label">Updates</label>
-  <div class="update-row">
-    <div class="update-line">
-      <div class="update-version" id="update-version">Version …</div>
-      <button class="subtle" id="update-check-btn" data-i18n="settings.updates.check">Check for updates</button>
-    </div>
-    <div class="update-meta" id="update-status" data-i18n="settings.updates.notChecked">Not checked yet.</div>
-    <div class="update-notes" id="update-notes" style="display:none"></div>
-    <div class="update-line" id="update-install-line" style="display:none">
-      <div class="update-meta" id="update-progress-text" style="flex:1" data-i18n="settings.updates.ready">Ready.</div>
-      <button id="update-install-btn" data-i18n="settings.updates.installBtn">Install &amp; restart</button>
-    </div>
-    <div class="progress" id="update-progress" style="display:none">
-      <div class="progress-bar" id="update-progress-bar"></div>
+    <div class="field">
+      <label data-i18n="settings.vocabulary.label">Custom Vocabulary</label>
+      <textarea
+        id="vocab-textarea"
+        class="vocab-textarea"
+        spellcheck="false"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        data-i18n-attr="placeholder:settings.vocabulary.placeholder"
+        placeholder="One term per line…"></textarea>
+      <div class="vocab-hint" data-i18n="settings.vocabulary.hint">
+        One term per line. Names, technical terms and acronyms Whisper tends to mishear. Saves on focus loss.
+      </div>
+      <div class="vocab-status" id="vocab-status" data-i18n="settings.vocabulary.saved">Saved</div>
     </div>
   </div>
 </div>
