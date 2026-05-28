@@ -59,6 +59,7 @@
   "overlay.recording": "Recording",
   "overlay.processing": "Transcribing…",
   "overlay.done": "Done",
+  "overlay.no_speech": "No speech detected",
 
   "tray.checkForUpdates": "Check for updates…",
   "tray.installUpdate": "Install update v{version}",

@@ -1,5 +1,7 @@
 //! Tiny file-backed logger. Writes to `~/Library/Logs/dm-voice.log`,
-//! rotating the previous run's log to `dm-voice.log.old` at startup.
+//! rotating the previous runs' logs to `dm-voice.log.1` .. `dm-voice.log.5`
+//! at startup (oldest dropped). The legacy `.old` name is still cleaned up
+//! on first launch after upgrade.
 //!
 //! Used during debugging so that diagnostics survive even when the app is
 //! launched outside a terminal (stderr → /dev/null in that case).
@@ -12,9 +14,23 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 static LOG_FILE: Mutex<Option<File>> = Mutex::new(None);
 
+const ROTATION_KEEP: usize = 5;
+
 fn log_path() -> PathBuf {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp"));
     home.join("Library/Logs/dm-voice.log")
+}
+
+fn rotate(path: &PathBuf) {
+    // Drop oldest, then shift .N → .N+1 down to .1, then current → .1.
+    let nth = |n: usize| path.with_extension(format!("log.{}", n));
+    let _ = std::fs::remove_file(nth(ROTATION_KEEP));
+    for n in (1..ROTATION_KEEP).rev() {
+        let _ = std::fs::rename(nth(n), nth(n + 1));
+    }
+    let _ = std::fs::rename(path, nth(1));
+    // Legacy single-slot rotation from older versions; harmless if absent.
+    let _ = std::fs::remove_file(path.with_extension("log.old"));
 }
 
 pub fn init() {
@@ -22,8 +38,7 @@ pub fn init() {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let old = path.with_extension("log.old");
-    let _ = std::fs::rename(&path, &old);
+    rotate(&path);
     let f = OpenOptions::new()
         .create(true)
         .append(true)

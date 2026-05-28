@@ -6,6 +6,25 @@ pub struct WhisperTranscriber {
     ctx: WhisperContext,
 }
 
+/// Per-call diagnostics returned alongside the transcribed text. Used by
+/// callers to decide whether the result is trustworthy (e.g. drop on high
+/// no_speech_prob or very low avg_logprob — both classic Whisper-hallucination
+/// signals).
+#[derive(Debug, Clone)]
+pub struct TranscriptionResult {
+    pub text: String,
+    /// Mean across segments of whisper's per-segment no_speech probability.
+    /// `None` when there were no segments.
+    pub no_speech_prob: Option<f32>,
+    /// Mean log-probability over all emitted (non-special) tokens.
+    /// `None` when no tokens were emitted. Range roughly [-3.0, 0.0]; values
+    /// below ~-1.0 typically indicate gibberish.
+    pub avg_logprob: Option<f32>,
+    /// True when the (otherwise valid-looking) output matched the known
+    /// silence-hallucination list and was zeroed out by this transcriber.
+    pub silence_hallucination: bool,
+}
+
 impl WhisperTranscriber {
     pub fn new(model_path: &PathBuf) -> Result<Self> {
         let mut params = WhisperContextParameters::default();
@@ -19,7 +38,11 @@ impl WhisperTranscriber {
         Ok(Self { ctx })
     }
 
-    pub fn transcribe(&self, audio: &[f32], initial_prompt: Option<&str>) -> Result<String> {
+    pub fn transcribe(
+        &self,
+        audio: &[f32],
+        initial_prompt: Option<&str>,
+    ) -> Result<TranscriptionResult> {
         let mut state = self.ctx.create_state()?;
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(Some("de"));
@@ -45,18 +68,54 @@ impl WhisperTranscriber {
         state.full(params, audio)?;
         let n = state.full_n_segments();
         let mut text = String::new();
+        let mut no_speech_sum: f32 = 0.0;
+        let mut no_speech_count: usize = 0;
+        let mut logprob_sum: f32 = 0.0;
+        let mut logprob_count: usize = 0;
         for i in 0..n {
             if let Some(seg) = state.get_segment(i) {
                 let s = seg.to_str_lossy()?;
                 text.push_str(s.trim());
                 text.push(' ');
+                no_speech_sum += seg.no_speech_probability();
+                no_speech_count += 1;
+                let n_tokens = seg.n_tokens();
+                for ti in 0..n_tokens {
+                    if let Some(tok) = seg.get_token(ti) {
+                        let p = tok.token_probability();
+                        if p > 0.0 {
+                            logprob_sum += p.ln();
+                            logprob_count += 1;
+                        }
+                    }
+                }
             }
         }
         let text = text.trim().to_string();
+        let no_speech_prob = if no_speech_count > 0 {
+            Some(no_speech_sum / no_speech_count as f32)
+        } else {
+            None
+        };
+        let avg_logprob = if logprob_count > 0 {
+            Some(logprob_sum / logprob_count as f32)
+        } else {
+            None
+        };
         if is_known_silence_hallucination(&text) {
-            return Ok(String::new());
+            return Ok(TranscriptionResult {
+                text: String::new(),
+                no_speech_prob,
+                avg_logprob,
+                silence_hallucination: true,
+            });
         }
-        Ok(text)
+        Ok(TranscriptionResult {
+            text,
+            no_speech_prob,
+            avg_logprob,
+            silence_hallucination: false,
+        })
     }
 }
 
@@ -94,7 +153,7 @@ mod tests {
         let t = WhisperTranscriber::new(&PathBuf::from(model)).unwrap();
         let silence = vec![0.0f32; 16_000];
         let result = t.transcribe(&silence, None).unwrap();
-        assert!(result.is_empty() || result.len() < 10);
+        assert!(result.text.is_empty() || result.text.len() < 10);
     }
 
     #[test]

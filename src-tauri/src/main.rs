@@ -441,11 +441,25 @@ fn set_webview_transparent(w: &tauri::WebviewWindow) {
 #[cfg(not(target_os = "macos"))]
 fn set_webview_transparent(_w: &tauri::WebviewWindow) {}
 
-fn trigger_transcription(app: AppHandle, state: SharedState) {
+/// Confidence thresholds for the post-transcription gate. Conservative
+/// defaults (taken from whisper.cpp's own defaults) so we don't drop valid
+/// quiet speech — but they catch the classic gibberish output that comes
+/// from feeding Whisper silence or stale-buffer noise.
+const NO_SPEECH_PROB_MAX: f32 = 0.6;
+const AVG_LOGPROB_MIN: f32 = -1.0;
+/// Pre-transcription audio-energy thresholds. Below these we treat the
+/// recording as silence and skip Whisper entirely.
+const PRE_GATE_RMS_MIN: f32 = 0.005;
+const PRE_GATE_ACTIVE_RATIO_MIN: f32 = 0.05;
+/// Sanity-check tolerance: how much longer than the shortcut-press the
+/// audio buffer may be before we treat it as a stale-buffer leak (the
+/// "Couterwell" bug). One second covers stream-stop latency + resampler
+/// boundary; anything larger is the audio.rs buffer-clear bug recurring.
+const BUFFER_DRIFT_TOLERANCE_S: f32 = 1.0;
+
+fn trigger_transcription(app: AppHandle, state: SharedState, expected_duration: Duration) {
     tauri::async_runtime::spawn(async move {
-        // recording_s ≈ time from shortcut-press to here. The exact end-of-recording
-        // happens inside stop_and_get_buffer (cpal stream drop), but the buffer
-        // duration is more accurate — see below.
+        let expected_s = expected_duration.as_secs_f32();
         let buffer = {
             let mut audio = state.audio.lock().unwrap();
             audio.stop_and_get_buffer().unwrap_or_default()
@@ -453,16 +467,41 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
         let astats = audio_stats(&buffer, TARGET_SAMPLE_RATE);
         let recording_s = astats.duration_secs;
         dlog!(
-            "Audio stats: duration={:.2}s rms={:.5} peak={:.5} active={:.3} samples={}",
+            "Audio stats: duration={:.2}s rms={:.5} peak={:.5} active={:.3} samples={} expected={:.2}s",
             astats.duration_secs,
             astats.rms,
             astats.peak,
             astats.active_ratio,
-            buffer.len()
+            buffer.len(),
+            expected_s
         );
         if buffer.is_empty() {
             dlog!("Empty audio buffer — nothing to transcribe (mic permission missing?)");
             hide_overlay(&app);
+            return;
+        }
+        // Sanity check: buffer length must roughly match how long the user
+        // actually held the shortcut. If it's much longer, stale samples
+        // from earlier runs leaked through and Whisper will hallucinate on
+        // the mixed input. See audio.rs::stop_and_get_buffer / commit
+        // history for the original Couterwell bug.
+        if recording_s > expected_s + BUFFER_DRIFT_TOLERANCE_S {
+            dlog!(
+                "Buffer drift detected: duration={:.2}s but shortcut elapsed={:.2}s — discarding to avoid hallucination",
+                recording_s,
+                expected_s
+            );
+            show_no_speech_overlay(&app);
+            return;
+        }
+        // Pre-gate: if the recording is essentially silence, skip whisper.
+        if astats.rms < PRE_GATE_RMS_MIN || astats.active_ratio < PRE_GATE_ACTIVE_RATIO_MIN {
+            dlog!(
+                "Pre-gate: audio below speech thresholds (rms={:.5}, active={:.3}) — no transcription",
+                astats.rms,
+                astats.active_ratio
+            );
+            show_no_speech_overlay(&app);
             return;
         }
         show_overlay(&app, "processing");
@@ -474,18 +513,55 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
         if let Some(ref p) = vocab_prompt {
             dlog!("Using custom-vocabulary prompt ({} chars)", p.len());
         }
-        let text = {
+        let outcome = {
             let t = state.transcriber.lock().unwrap();
             if t.is_none() {
                 dlog!("Transcriber not loaded — model missing?");
             }
             t.as_ref()
                 .and_then(|t| t.transcribe(&buffer, vocab_prompt.as_deref()).ok())
-                .unwrap_or_default()
         };
         let processing_s = t_proc_start.elapsed().as_secs_f32();
-        dlog!("Transcription result: {:?} ({} chars)", &text, text.len());
-        if !text.is_empty() {
+        let (text, no_speech_prob, avg_logprob, silence_hallucination) = match outcome {
+            Some(r) => (r.text, r.no_speech_prob, r.avg_logprob, r.silence_hallucination),
+            None => (String::new(), None, None, false),
+        };
+        dlog!(
+            "Transcription result: {:?} ({} chars) no_speech={} avg_logprob={} silence_match={}",
+            &text,
+            text.len(),
+            no_speech_prob
+                .map(|v| format!("{:.3}", v))
+                .unwrap_or_else(|| "n/a".into()),
+            avg_logprob
+                .map(|v| format!("{:.3}", v))
+                .unwrap_or_else(|| "n/a".into()),
+            silence_hallucination
+        );
+        // Post-gate: Whisper's own confidence signals. Threshold values
+        // follow whisper.cpp defaults; tune via the constants above if real
+        // speech is being dropped.
+        let low_confidence = no_speech_prob.map(|p| p > NO_SPEECH_PROB_MAX).unwrap_or(false)
+            || avg_logprob.map(|p| p < AVG_LOGPROB_MIN).unwrap_or(false);
+        if !text.is_empty() && low_confidence {
+            dlog!(
+                "Post-gate: low-confidence transcription discarded (no_speech={:?}, avg_logprob={:?})",
+                no_speech_prob,
+                avg_logprob
+            );
+            show_no_speech_overlay(&app);
+            return;
+        }
+        if silence_hallucination {
+            show_no_speech_overlay(&app);
+            return;
+        }
+        if text.is_empty() {
+            dlog!("Empty transcription — nothing to inject");
+            show_no_speech_overlay(&app);
+            return;
+        }
+        {
             let target_pid = *state.frontmost_pid.lock().unwrap();
             dlog!("injecting into pid={:?}", target_pid);
             // NSPasteboard + CGEventPost both work best on the main thread.
@@ -518,12 +594,22 @@ fn trigger_transcription(app: AppHandle, state: SharedState) {
                     .usage_stats
                     .record(chars, recording_s, processing_s);
             }
-        } else {
-            dlog!("Empty transcription — nothing to inject");
         }
         show_overlay(&app, "done");
         sleep(Duration::from_millis(400)).await;
         hide_overlay(&app);
+    });
+}
+
+/// Show a brief "no speech detected" overlay state, then hide. Used by all
+/// gates (pre-, sanity-, post-, empty result) so the user always gets the
+/// same feedback when nothing is injected.
+fn show_no_speech_overlay(app: &AppHandle) {
+    show_overlay(app, "no-speech");
+    let app2 = app.clone();
+    tauri::async_runtime::spawn(async move {
+        sleep(Duration::from_millis(900)).await;
+        hide_overlay(&app2);
     });
 }
 
@@ -576,7 +662,7 @@ fn on_shortcut_pressed(app: &AppHandle, state: &SharedState) {
                 Some(d) if d > Duration::from_secs(60) => {
                     *state2.recording_start.lock().unwrap() = None;
                     *state2.auto_stop.lock().unwrap() = true;
-                    trigger_transcription(app2.clone(), Arc::clone(&state2));
+                    trigger_transcription(app2.clone(), Arc::clone(&state2), d);
                     break;
                 }
                 _ => {}
@@ -604,7 +690,7 @@ fn on_shortcut_released(app: &AppHandle, state: &SharedState) {
     }
     let sounds_enabled = state.config.lock().unwrap().sounds_enabled;
     sounds::play_end(sounds_enabled);
-    trigger_transcription(app.clone(), Arc::clone(state));
+    trigger_transcription(app.clone(), Arc::clone(state), elapsed);
 }
 
 fn register_shortcut(app: &AppHandle, shortcut: &str, state: SharedState) {

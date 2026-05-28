@@ -135,6 +135,11 @@ impl AudioCapture {
         let buffer = Arc::clone(&self.buffer);
         let amplitude = Arc::clone(&self.amplitude);
         let config: cpal::StreamConfig = supported.into();
+        // Clear before play() so the input callback can't write samples that
+        // get wiped immediately after — and so stale samples from prior runs
+        // (including streams that may have been started outside this method)
+        // are guaranteed gone before capture begins.
+        self.buffer.lock().unwrap().clear();
         let stream = device.build_input_stream(
             &config,
             move |data: &[f32], _| {
@@ -147,7 +152,6 @@ impl AudioCapture {
         )?;
         stream.play()?;
         self.stream = Some(stream);
-        *self.buffer.lock().unwrap() = Vec::new();
         Ok(())
     }
 
@@ -156,8 +160,13 @@ impl AudioCapture {
     }
 
     pub fn stop_and_get_buffer(&mut self) -> Result<Vec<f32>> {
+        // Drop the stream first so no further callback can append samples
+        // while we're draining. Then take the buffer by std::mem::take so
+        // the next recording starts empty even if start_with_device's clear
+        // races with a still-firing callback (CoreAudio can post one more
+        // buffer after the stream drop on macOS).
         self.stream.take();
-        let raw = self.buffer.lock().unwrap().clone();
+        let raw = std::mem::take(&mut *self.buffer.lock().unwrap());
         let mono = downmix_to_mono(&raw, self.channels);
         let resampled = resample(&mono, self.sample_rate, TARGET_SAMPLE_RATE)?;
         Ok(resampled)

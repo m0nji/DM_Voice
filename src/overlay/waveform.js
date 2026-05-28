@@ -39,7 +39,7 @@ function stopPulse() {
 function setState(newState) {
   state = newState;
   stopPulse();
-  pill.classList.remove('visible', 'processing', 'done');
+  pill.classList.remove('visible', 'processing', 'done', 'no-speech');
 
   if (newState === 'idle') {
     setHeights([6, 6, 6, 6, 6]);
@@ -56,6 +56,10 @@ function setState(newState) {
     label.textContent = t('overlay.done');
     setHeights([4, 10, 16, 10, 4]);
     setTimeout(() => setState('idle'), 380);
+  } else if (newState === 'no-speech') {
+    pill.classList.add('visible', 'no-speech');
+    label.textContent = t('overlay.no_speech');
+    setHeights([6, 6, 6, 6, 6]);
   }
 }
 
