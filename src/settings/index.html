@@ -203,25 +203,6 @@
       <label data-i18n="settings.models.label">Models</label>
       <div id="model-list"></div>
     </div>
-
-    <div class="field">
-      <label data-i18n="settings.updates.label">Updates</label>
-      <div class="update-row">
-        <div class="update-line">
-          <div class="update-version" id="update-version">Version …</div>
-          <button id="update-check-btn" data-i18n="settings.updates.check">Check for updates</button>
-        </div>
-        <div class="update-meta" id="update-status" data-i18n="settings.updates.notChecked">Not checked yet.</div>
-        <div class="update-notes" id="update-notes" style="display:none"></div>
-        <div class="update-line" id="update-install-line" style="display:none">
-          <div class="update-meta" id="update-progress-text" style="flex:1" data-i18n="settings.updates.ready">Ready.</div>
-          <button class="primary" id="update-install-btn" data-i18n="settings.updates.installBtn">Install &amp; restart</button>
-        </div>
-        <div class="progress" id="update-progress" style="display:none">
-          <div class="progress-bar" id="update-progress-bar"></div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <div class="col-right">
@@ -259,6 +240,25 @@
         One term per line. Names, technical terms and acronyms Whisper tends to mishear. Saves on focus loss.
       </div>
       <div class="vocab-status" id="vocab-status" data-i18n="settings.vocabulary.saved">Saved</div>
+    </div>
+
+    <div class="field">
+      <label data-i18n="settings.updates.label">Updates</label>
+      <div class="update-row">
+        <div class="update-line">
+          <div class="update-version" id="update-version">Version …</div>
+          <button id="update-check-btn" data-i18n="settings.updates.check">Check for updates</button>
+        </div>
+        <div class="update-meta" id="update-status" data-i18n="settings.updates.notChecked">Not checked yet.</div>
+        <div class="update-notes" id="update-notes" style="display:none"></div>
+        <div class="update-line" id="update-install-line" style="display:none">
+          <div class="update-meta" id="update-progress-text" style="flex:1" data-i18n="settings.updates.ready">Ready.</div>
+          <button class="primary" id="update-install-btn" data-i18n="settings.updates.installBtn">Install &amp; restart</button>
+        </div>
+        <div class="progress" id="update-progress" style="display:none">
+          <div class="progress-bar" id="update-progress-bar"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
