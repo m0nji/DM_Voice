@@ -128,10 +128,19 @@ impl AudioCapture {
             })
             .or_else(|| host.default_input_device())
             .ok_or_else(|| anyhow::anyhow!("No microphone found"))?;
+        let resolved_name = device.name().unwrap_or_else(|_| "<unknown>".into());
         let supported = device.default_input_config()?;
         let sample_rate = supported.sample_rate().0;
         self.sample_rate = sample_rate;
         self.channels = supported.channels();
+        crate::dlog!(
+            "audio: resolved device={:?} (requested={:?}) sample_rate={} channels={} format={:?}",
+            resolved_name,
+            preferred,
+            sample_rate,
+            self.channels,
+            supported.sample_format()
+        );
         let buffer = Arc::clone(&self.buffer);
         let amplitude = Arc::clone(&self.amplitude);
         let config: cpal::StreamConfig = supported.into();
@@ -147,10 +156,11 @@ impl AudioCapture {
                 *amplitude.lock().unwrap() = amp;
                 buffer.lock().unwrap().extend_from_slice(data);
             },
-            |err| eprintln!("Audio stream error: {}", err),
+            |err| crate::dlog!("audio: stream error: {}", err),
             None,
         )?;
         stream.play()?;
+        crate::dlog!("audio: stream built and playing on {:?}", resolved_name);
         self.stream = Some(stream);
         Ok(())
     }
@@ -165,8 +175,30 @@ impl AudioCapture {
         // the next recording starts empty even if start_with_device's clear
         // races with a still-firing callback (CoreAudio can post one more
         // buffer after the stream drop on macOS).
+        // Explicitly stop the CoreAudio AudioUnit BEFORE dropping the stream.
+        // Dropping alone is not enough on macOS: the stream is built on the
+        // shortcut-handler thread but dropped here on a tokio worker (this runs
+        // inside trigger_transcription's spawned task), and across that thread
+        // boundary CoreAudio can leave the input AudioUnit running. That "ghost"
+        // stream keeps appending to the shared buffer in parallel with the next
+        // recording — observed as a consistent 2x buffer duration that trips the
+        // "Buffer drift detected" guard (so nothing is transcribed) and keeps the
+        // macOS mic indicator lit. pause() maps to AudioOutputUnitStop, which is
+        // thread-safe and synchronous, so stop the unit while we still hold the
+        // handle. After take() the handle is gone and the ghost is unreachable.
+        let had_stream = self.stream.is_some();
+        if let Some(ref stream) = self.stream {
+            if let Err(e) = stream.pause() {
+                crate::dlog!("audio: stream.pause() on stop failed: {}", e);
+            }
+        }
         self.stream.take();
         let raw = std::mem::take(&mut *self.buffer.lock().unwrap());
+        crate::dlog!(
+            "audio: stream paused+dropped (had_stream={}), drained {} raw samples",
+            had_stream,
+            raw.len()
+        );
         let mono = downmix_to_mono(&raw, self.channels);
         let resampled = resample(&mono, self.sample_rate, TARGET_SAMPLE_RATE)?;
         Ok(resampled)

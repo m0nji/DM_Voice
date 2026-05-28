@@ -46,6 +46,7 @@ pub fn init() {
         .ok();
     *LOG_FILE.lock().unwrap() = f;
     log(&format!("=== dm-voice log opened: {} ===", path.display()));
+    log(&format!("dm-voice version {}", env!("CARGO_PKG_VERSION")));
 }
 
 fn ts() -> String {
