@@ -40,7 +40,7 @@ Grab the latest build for your platform from [Releases](https://github.com/m0nji
 ### Windows (x86_64)
 
 1. Download `DM.Voice_<version>_x64-setup.exe`
-2. Run the NSIS installer. On first launch Windows SmartScreen may show a warning — click "More info → Run anyway"
+2. Run the NSIS installer from the GitHub Releases page. Windows builds are currently unsigned, so SmartScreen may warn until Authenticode signing is added.
 3. GPU acceleration works out-of-the-box on NVIDIA, AMD and Intel Arc/Xe (Vulkan ships with the GPU driver — no separate SDK needed for end users)
 
 > Windows ARM64 (Snapdragon X) is not built yet — pending Vulkan-SDK validation on `aarch64-pc-windows-msvc`.

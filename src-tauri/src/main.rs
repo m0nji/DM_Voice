@@ -457,6 +457,14 @@ const PRE_GATE_ACTIVE_RATIO_MIN: f32 = 0.05;
 /// boundary; anything larger is the audio.rs buffer-clear bug recurring.
 const BUFFER_DRIFT_TOLERANCE_S: f32 = 1.0;
 
+fn transcription_text_for_log(text: &str) -> &'static str {
+    if text.is_empty() {
+        "<empty>"
+    } else {
+        "<redacted>"
+    }
+}
+
 fn trigger_transcription(app: AppHandle, state: SharedState, expected_duration: Duration) {
     tauri::async_runtime::spawn(async move {
         let expected_s = expected_duration.as_secs_f32();
@@ -527,8 +535,8 @@ fn trigger_transcription(app: AppHandle, state: SharedState, expected_duration: 
             None => (String::new(), None, None, false),
         };
         dlog!(
-            "Transcription result: {:?} ({} chars) no_speech={} avg_logprob={} silence_match={}",
-            &text,
+            "Transcription result: {} ({} chars) no_speech={} avg_logprob={} silence_match={}",
+            transcription_text_for_log(&text),
             text.len(),
             no_speech_prob
                 .map(|v| format!("{:.3}", v))
@@ -1207,7 +1215,7 @@ fn main() {
             // Auto-download default model if not installed
             let default_model = models::MODELS
                 .iter()
-                .find(|(name, _, _, _)| *name == "large-v3-turbo")
+                .find(|(name, _, _, _, _)| *name == "large-v3-turbo")
                 .unwrap();
             if !models::model_path(default_model.1).exists() {
                 let app_handle2 = app.handle().clone();
@@ -1235,4 +1243,15 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn transcription_text_is_redacted_for_logs() {
+        assert_eq!(transcription_text_for_log("vertraulicher Text"), "<redacted>");
+        assert_eq!(transcription_text_for_log(""), "<empty>");
+    }
 }

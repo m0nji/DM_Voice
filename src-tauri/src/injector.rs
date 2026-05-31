@@ -52,7 +52,9 @@ fn frontmost_app_info() -> Option<(i32, String)> {
             if cstr.is_null() {
                 String::new()
             } else {
-                std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned()
+                std::ffi::CStr::from_ptr(cstr)
+                    .to_string_lossy()
+                    .into_owned()
             }
         };
         if pid <= 0 {
@@ -72,7 +74,12 @@ pub fn frontmost_app_pid() -> Option<i32> {
     let my_pid = std::process::id() as i32;
     match info {
         Some((pid, ref name)) => {
-            dlog!("frontmost_app_pid: pid={} name={:?} my_pid={}", pid, name, my_pid);
+            dlog!(
+                "frontmost_app_pid: pid={} name={:?} my_pid={}",
+                pid,
+                name,
+                my_pid
+            );
             if pid == my_pid {
                 dlog!("  -> filtered (DM Voice itself)");
                 None
@@ -88,8 +95,43 @@ pub fn frontmost_app_pid() -> Option<i32> {
 }
 
 #[cfg(not(target_os = "macos"))]
+#[cfg(not(target_os = "windows"))]
 pub fn frontmost_app_pid() -> Option<i32> {
     None
+}
+
+#[cfg(target_os = "windows")]
+fn foreground_window_pid() -> Option<i32> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowThreadProcessId,
+    };
+
+    unsafe {
+        let hwnd = GetForegroundWindow();
+        if hwnd.is_null() {
+            return None;
+        }
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        if pid == 0 {
+            None
+        } else {
+            Some(pid as i32)
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub fn frontmost_app_pid() -> Option<i32> {
+    let pid = foreground_window_pid()?;
+    let my_pid = std::process::id() as i32;
+    dlog!("frontmost_app_pid: pid={} my_pid={}", pid, my_pid);
+    if pid == my_pid {
+        dlog!("  -> filtered (DM Voice itself)");
+        None
+    } else {
+        Some(pid)
+    }
 }
 
 /// Bring the app with the given PID to the foreground via the Accessibility API.
@@ -129,13 +171,15 @@ fn activate_pid(pid: i32) -> bool {
 
     // Build a CFString for "AXFrontmost" via NSString → toll-free bridge.
     type MsgIdNoArg = unsafe extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void;
-    type MsgIdCStr =
-        unsafe extern "C" fn(*mut c_void, *mut c_void, *const i8) -> *mut c_void;
+    type MsgIdCStr = unsafe extern "C" fn(*mut c_void, *mut c_void, *const i8) -> *mut c_void;
 
     unsafe {
         let app_el = AXUIElementCreateApplication(pid);
         if app_el.is_null() {
-            dlog!("activate_pid({}): AXUIElementCreateApplication returned null", pid);
+            dlog!(
+                "activate_pid({}): AXUIElementCreateApplication returned null",
+                pid
+            );
             return false;
         }
 
@@ -174,14 +218,54 @@ fn activate_pid(pid: i32) -> bool {
 /// re-activated so that Cmd+V lands in its text field even if the overlay
 /// briefly stole focus.
 pub fn inject_text(text: &str, target_pid: Option<i32>) -> Result<()> {
-    dlog!("inject_text: len={} target_pid={:?}", text.len(), target_pid);
+    dlog!(
+        "inject_text: len={} target_pid={:?}",
+        text.len(),
+        target_pid
+    );
     if text.is_empty() {
         return Ok(());
     }
-    copy_to_clipboard(text)?;
+    let mut clipboard = Clipboard::new()?;
+    let previous_clipboard = capture_clipboard_snapshot(&mut clipboard);
+    clipboard.set_text(text)?;
     thread::sleep(Duration::from_millis(80));
-    paste_via_cgevent(target_pid)?;
+    let paste_result = paste_via_cgevent(target_pid);
+    if let Err(err) = restore_clipboard_snapshot(&mut clipboard, previous_clipboard) {
+        dlog!("clipboard restore failed after paste attempt: {:?}", err);
+    }
+    paste_result
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ClipboardSnapshot {
+    Text(String),
+    NotTextOrUnavailable,
+}
+
+fn capture_clipboard_snapshot(clipboard: &mut Clipboard) -> ClipboardSnapshot {
+    match clipboard.get_text() {
+        Ok(text) => ClipboardSnapshot::Text(text),
+        Err(err) => {
+            dlog!("clipboard text snapshot unavailable: {:?}", err);
+            ClipboardSnapshot::NotTextOrUnavailable
+        }
+    }
+}
+
+fn restore_clipboard_snapshot(
+    clipboard: &mut Clipboard,
+    snapshot: ClipboardSnapshot,
+) -> Result<()> {
+    match snapshot {
+        ClipboardSnapshot::Text(text) => clipboard.set_text(text)?,
+        ClipboardSnapshot::NotTextOrUnavailable => clipboard.clear()?,
+    }
     Ok(())
+}
+
+fn frontmost_matches_target_pid(target_pid: Option<i32>, actual_pid: Option<i32>) -> bool {
+    matches!((target_pid, actual_pid), (Some(target), Some(actual)) if target == actual)
 }
 
 #[cfg(target_os = "macos")]
@@ -226,20 +310,24 @@ fn paste_via_cgevent(target_pid: Option<i32>) -> Result<()> {
             // If AX didn't actually make the target frontmost, retry once with a
             // longer settling delay — some apps need a tick to bring up their key
             // window in response to AXFrontmost.
-            if let Some((p, _)) = post_front {
-                if p != pid {
-                    dlog!("  retrying activation after 80ms");
-                    let _ = activate_pid(pid);
-                    thread::sleep(Duration::from_millis(80));
-                    let retry_front = frontmost_app_info();
-                    dlog!("  retry frontmost={:?}", retry_front);
-                }
+            let mut actual_pid = post_front.as_ref().map(|(p, _)| *p);
+            if !frontmost_matches_target_pid(Some(pid), actual_pid) {
+                dlog!("  retrying activation after 80ms");
+                let _ = activate_pid(pid);
+                thread::sleep(Duration::from_millis(80));
+                let retry_front = frontmost_app_info();
+                dlog!("  retry frontmost={:?}", retry_front);
+                actual_pid = retry_front.as_ref().map(|(p, _)| *p);
+            }
+            if !frontmost_matches_target_pid(Some(pid), actual_pid) {
+                anyhow::bail!("target application was not frontmost after activation");
             }
         } else {
             dlog!(
                 "paste_via_cgevent: no target_pid — frontmost is {:?}",
                 pre_front
             );
+            anyhow::bail!("no target application captured for paste");
         }
 
         dlog!("paste_via_cgevent: posting Cmd+V");
@@ -287,8 +375,74 @@ fn paste_via_cgevent(target_pid: Option<i32>) -> Result<()> {
     Ok(())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 fn paste_via_cgevent(_target_pid: Option<i32>) -> Result<()> {
+    use windows_sys::Win32::Foundation::{HWND, LPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindowThreadProcessId, IsWindowVisible, SetForegroundWindow,
+    };
+
+    unsafe extern "system" fn enum_windows_for_pid(hwnd: HWND, lparam: LPARAM) -> i32 {
+        let search = &mut *(lparam as *mut WindowSearch);
+        if IsWindowVisible(hwnd) == 0 {
+            return 1;
+        }
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        if pid == search.pid {
+            search.hwnd = hwnd;
+            return 0;
+        }
+        1
+    }
+
+    struct WindowSearch {
+        pid: u32,
+        hwnd: HWND,
+    }
+
+    fn find_window_for_pid(pid: i32) -> Option<HWND> {
+        unsafe {
+            let mut search = WindowSearch {
+                pid: pid as u32,
+                hwnd: std::ptr::null_mut(),
+            };
+            EnumWindows(
+                Some(enum_windows_for_pid),
+                &mut search as *mut WindowSearch as LPARAM,
+            );
+            if search.hwnd.is_null() {
+                None
+            } else {
+                Some(search.hwnd)
+            }
+        }
+    }
+
+    fn activate_pid(pid: i32) -> bool {
+        let Some(hwnd) = find_window_for_pid(pid) else {
+            dlog!("activate_pid({}): no visible window found", pid);
+            return false;
+        };
+        let ok = unsafe { SetForegroundWindow(hwnd) != 0 };
+        dlog!("activate_pid({}): SetForegroundWindow={}", pid, ok);
+        ok
+    }
+
+    let target_pid =
+        _target_pid.ok_or_else(|| anyhow::anyhow!("no target application captured for paste"))?;
+    let _ = activate_pid(target_pid);
+    thread::sleep(Duration::from_millis(120));
+    let actual_pid = foreground_window_pid();
+    dlog!(
+        "paste_via_cgevent: windows frontmost={:?} target={}",
+        actual_pid,
+        target_pid
+    );
+    if !frontmost_matches_target_pid(Some(target_pid), actual_pid) {
+        anyhow::bail!("target application was not frontmost after activation");
+    }
+
     use enigo::{Enigo, Key, Keyboard, Settings};
     let mut enigo = Enigo::new(&Settings::default())?;
     enigo.key(Key::Control, enigo::Direction::Press)?;
@@ -296,6 +450,11 @@ fn paste_via_cgevent(_target_pid: Option<i32>) -> Result<()> {
     enigo.key(Key::Control, enigo::Direction::Release)?;
     thread::sleep(Duration::from_millis(100));
     Ok(())
+}
+
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+fn paste_via_cgevent(_target_pid: Option<i32>) -> Result<()> {
+    anyhow::bail!("text injection is only supported on macOS and Windows")
 }
 
 pub fn copy_to_clipboard(text: &str) -> Result<()> {
@@ -311,5 +470,13 @@ mod tests {
     #[test]
     fn inject_empty_text_is_noop() {
         assert!(inject_text("", None).is_ok());
+    }
+
+    #[test]
+    fn target_frontmost_check_requires_exact_pid_match() {
+        assert!(frontmost_matches_target_pid(Some(42), Some(42)));
+        assert!(!frontmost_matches_target_pid(Some(42), Some(7)));
+        assert!(!frontmost_matches_target_pid(Some(42), None));
+        assert!(!frontmost_matches_target_pid(None, Some(42)));
     }
 }

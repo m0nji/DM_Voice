@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           # Full history + tags so the changelog step can diff against
           # the previous tag.
@@ -52,12 +52,12 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           targets: ${{ matrix.target }}
 
       - name: Cache cargo registry & target
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
         with:
           workspaces: src-tauri
 
@@ -81,7 +81,7 @@ jobs:
         # einen normalen Notarization-Lauf (1–10 min) plus Puffer; danach
         # failed der Build schnell statt CI-Minuten zu verbrennen.
         timeout-minutes: 30
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@fce9c6108b31ea247710505d3aaaa893ee6768d4 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Tauri-Updater-Signatur: der Private Key signiert die
@@ -134,7 +134,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           # Full history + tags so the changelog step can diff against
           # the previous tag.
@@ -154,14 +154,14 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           targets: ${{ matrix.target }}
 
       - name: Setup MSVC environment
         # vcvarsall env (CL, INCLUDE, LIB, PATH) für alle nachfolgenden
         # Steps. Ninja-Build erkennt MSVC dann via cl.exe im PATH.
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         with:
           arch: ${{ matrix.arch }}
 
@@ -173,7 +173,7 @@ jobs:
         # wird (Compiler-Detection scheitert). Ninja baut flach: ein
         # einziger cmake-Run, ein Ninja-Process, vcvars-Env wird sauber
         # durchgereicht.
-        run: choco install ninja -y --no-progress
+        run: choco install ninja --version=1.13.2 -y --no-progress
 
       - name: Disable ccache (unreliable with MSVC for whisper.cpp)
         # windows-latest hat ccache vorinstalliert; CMake (whisper.cpp's
@@ -204,18 +204,18 @@ jobs:
       - name: Install Vulkan SDK
         # whisper-rs `vulkan` feature braucht Vulkan-Header + libs zur
         # Build-Zeit. LunarG-SDK liefert beides; cache spart ~3 min pro Run.
-        uses: humbletim/install-vulkan-sdk@v1.2
+        uses: humbletim/install-vulkan-sdk@30ba978f977e81b72d091fc8888feb1fb26f9aff # v1.2
         with:
           version: 1.3.290.0
           cache: true
 
       - name: Cache cargo registry & target
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
         with:
           workspaces: src-tauri
 
       - name: Build & bundle (Tauri)
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@fce9c6108b31ea247710505d3aaaa893ee6768d4 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Ninja statt Visual Studio Generator: vermeidet die
@@ -272,11 +272,15 @@ jobs:
 
           # Asset-Namen vom Release lesen (für die Download-URLs)
           assets_json=$(gh release view "$TAG" --repo "$REPO" --json assets)
-          mac_asset=$(echo "$assets_json" | jq -r '.assets[].name | select(test("aarch64.app.tar.gz$"))')
-          win_asset=$(echo "$assets_json" | jq -r '.assets[].name | select(test("x64-setup\\.exe$"))')
+          mac_asset=$(echo "$assets_json" | jq -er '[.assets[].name | select(test("aarch64\\.app\\.tar\\.gz$"))] | if length == 1 then .[0] else error("expected exactly one macOS updater asset, got \(length)") end')
+          win_asset=$(echo "$assets_json" | jq -er '[.assets[].name | select(test("x64-setup\\.exe$"))] | if length == 1 then .[0] else error("expected exactly one Windows installer asset, got \(length)") end')
 
-          mac_sig=$(cat "sigs/${mac_asset}.sig" 2>/dev/null || echo "")
-          win_sig=$(cat "sigs/${win_asset}.sig" 2>/dev/null || echo "")
+          mac_sig_file="sigs/${mac_asset}.sig"
+          win_sig_file="sigs/${win_asset}.sig"
+          test -s "$mac_sig_file" || { echo "Missing macOS updater signature: $mac_sig_file" >&2; exit 1; }
+          test -s "$win_sig_file" || { echo "Missing Windows updater signature: $win_sig_file" >&2; exit 1; }
+          mac_sig=$(cat "$mac_sig_file")
+          win_sig=$(cat "$win_sig_file")
 
           version="${TAG#v}"
           base_url="https://github.com/${REPO}/releases/download/${TAG}"
@@ -296,10 +300,10 @@ jobs:
               notes: $notes,
               pub_date: $pub_date,
               platforms: (
-                ({} +
-                  (if $mac_sig != "" then {"darwin-aarch64": {signature: $mac_sig, url: $mac_url}} else {} end) +
-                  (if $win_sig != "" then {"windows-x86_64": {signature: $win_sig, url: $win_url}} else {} end)
-                )
+                {
+                  "darwin-aarch64": {signature: $mac_sig, url: $mac_url},
+                  "windows-x86_64": {signature: $win_sig, url: $win_url}
+                }
               )
             }' > latest.json
 
