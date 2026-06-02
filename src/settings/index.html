@@ -95,6 +95,26 @@
   .toggle-row input[type="checkbox"]:checked { background: #0a84ff; }
   .toggle-row input[type="checkbox"]:checked::after { left: 16px; }
 
+  /* Hands-free options — label left, control right (matches .toggle-row) */
+  .hf-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 4px 0;
+  }
+  .hf-label { font-weight: 500; }
+  .hf-control {
+    width: 132px; flex: none;
+    background: #1e1e1e; color: #e0e0e0; border: 1px solid #3a3a3c;
+    border-radius: 5px; padding: 4px 8px; font-size: 12px; cursor: pointer;
+    outline: none;
+  }
+  .hf-control:focus { border-color: #0a84ff; }
+  .hf-silence { display: flex; align-items: center; gap: 8px; width: 132px; flex: none; }
+  .hf-silence input[type="range"] { flex: 1; min-width: 0; accent-color: #0a84ff; }
+  .hf-silence-value {
+    font-size: 11px; color: #aeaeb2; min-width: 30px; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
   /* Time Saved card */
   .timesaved-card {
     background: #2c2c2e; border-radius: 6px; padding: 14px 14px 10px;
@@ -191,22 +211,24 @@
       </div>
       <div class="vocab-hint" data-i18n="settings.handsfree.hint"></div>
       <div id="handsfree-options" style="margin-top:10px; display:none">
-        <div style="margin-bottom:8px">
-          <span class="typing-speed-label" data-i18n="settings.handsfree.wakeword">Wake word</span>
-          <select id="handsfree-wakeword"></select>
+        <div class="hf-row">
+          <span class="hf-label" data-i18n="settings.handsfree.wakeword">Wake word</span>
+          <select id="handsfree-wakeword" class="hf-control"></select>
         </div>
-        <div style="margin-bottom:8px">
-          <span class="typing-speed-label" data-i18n="settings.handsfree.sensitivity">Sensitivity</span>
-          <select id="handsfree-sensitivity">
+        <div class="hf-row">
+          <span class="hf-label" data-i18n="settings.handsfree.sensitivity">Sensitivity</span>
+          <select id="handsfree-sensitivity" class="hf-control">
             <option value="low" data-i18n="settings.handsfree.sensitivity.low">Low</option>
             <option value="medium" data-i18n="settings.handsfree.sensitivity.medium">Medium</option>
             <option value="high" data-i18n="settings.handsfree.sensitivity.high">High</option>
           </select>
         </div>
-        <div>
-          <span class="typing-speed-label" data-i18n="settings.handsfree.silence">Stop after silence</span>
-          <input type="range" id="handsfree-silence" min="1000" max="8000" step="500">
-          <span id="handsfree-silence-value"></span>
+        <div class="hf-row">
+          <span class="hf-label" data-i18n="settings.handsfree.silence">Stop after silence</span>
+          <div class="hf-silence">
+            <input type="range" id="handsfree-silence" min="1000" max="8000" step="500">
+            <span id="handsfree-silence-value" class="hf-silence-value"></span>
+          </div>
         </div>
       </div>
     </div>
