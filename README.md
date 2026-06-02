@@ -87,6 +87,11 @@ Output: NSIS installer at `src-tauri\target\release\bundle\nsis\`.
 
 For the exact CI recipe (MSVC env, ccache workaround, etc.) see [`.github/workflows/release.yml`](.github/workflows/release.yml).
 
+## Third-party components
+
+- Wake-word detection uses [oww-rs](https://github.com/skoky/oww_rs) (MIT), vendored under `src-tauri/vendor/oww-rs`, which runs [openWakeWord](https://github.com/dscripka/openWakeWord) models via the pure-Rust [tract](https://github.com/sonos/tract) ONNX runtime.
+- The bundled wake-word models (`hey_jarvis`, `alexa`, `hey_mycroft`) are pretrained openWakeWord models.
+
 ## License
 
 DM Voice is licensed under the **GNU General Public License v3.0 or later** (GPL-3.0+).
