@@ -49,6 +49,15 @@ impl OwwModel {
         }
     }
 
+    /// Reset detection state between listening sessions. Clears the rolling
+    /// probability buffer and restarts the cooldown clock so stale high
+    /// probabilities from a prior utterance cannot immediately re-fire after a
+    /// recording ends. (Added for DM-Voice hands-free re-trigger fix.)
+    pub fn reset(&mut self) {
+        self.detections_buffer.clear();
+        self.last_detection_time = Instant::now();
+    }
+
     pub fn detect(&mut self, features: TractTensor) -> (bool, f32) {
         trace!("2: features size {:?}", features.shape()); // [16, 96]
         let last = features.into_shape(&[1, 16, 96]).unwrap();

@@ -16,6 +16,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 const MAX_RECORDING_SECS: u32 = 60;
 const RESAMPLE_CHUNK: usize = 1024;
@@ -150,6 +151,9 @@ impl WakeListener {
                 let mut phase = Phase::Listening;
                 let mut raw_pending: Vec<f32> = Vec::new(); // native-rate carry
                 let mut frames: Vec<f32> = Vec::new(); // 16 kHz carry
+                // Diagnostics (see DEBUG.md wake-word investigation 2026-06-02):
+                let mut last_fire: Option<Instant> = None; // wall-clock of last FIRED
+                let mut rec_started: Option<Instant> = None; // wall-clock recording start
 
                 while running.load(Ordering::Relaxed) {
                     std::thread::sleep(std::time::Duration::from_millis(40));
@@ -175,15 +179,39 @@ impl WakeListener {
                         }
                     }
 
+                    // Diagnostic: if we're processing a large backlog, the worker
+                    // fell behind realtime (CPU/GPU contention) — a lag source.
+                    let backlog = frames.len() / FRAME_LENGTH;
+                    if backlog > 3 {
+                        crate::dlog!(
+                            "wake-listener: behind realtime — backlog={} frames (~{}ms), raw_pending={}",
+                            backlog,
+                            backlog * 80,
+                            raw_pending.len()
+                        );
+                    }
+
                     // Slice into FRAME_LENGTH (1280) chunks; drive the state machine.
                     while frames.len() >= FRAME_LENGTH {
                         let chunk: Vec<f32> = frames.drain(..FRAME_LENGTH).collect();
                         match &mut phase {
                             Phase::Listening => {
-                                if detector.detect(&chunk) {
+                                let det = detector.detect(&chunk);
+                                if det.detected {
+                                    let gap_ms =
+                                        last_fire.map(|t| t.elapsed().as_millis()).unwrap_or(0);
+                                    last_fire = Some(Instant::now());
+                                    crate::dlog!(
+                                        "wake-listener: FIRED prob={:.3} gap_since_last={}ms frames_buffered={} raw_pending={}",
+                                        det.probability,
+                                        gap_ms,
+                                        frames.len(),
+                                        raw_pending.len()
+                                    );
                                     if events.send(WakeEvent::Detected).is_err() {
                                         return;
                                     }
+                                    rec_started = Some(Instant::now());
                                     phase = Phase::Recording {
                                         buffer: Vec::new(),
                                         vad: SilenceTracker::new(
@@ -198,6 +226,16 @@ impl WakeListener {
                                 buffer.extend_from_slice(&chunk);
                                 if vad.push(&chunk) {
                                     let dur = buffer.len() as f32 / TARGET_SAMPLE_RATE as f32;
+                                    let wall_ms =
+                                        rec_started.map(|t| t.elapsed().as_millis()).unwrap_or(0);
+                                    let hit_cap = dur >= (MAX_RECORDING_SECS as f32 - 0.5);
+                                    crate::dlog!(
+                                        "wake-listener: SpeechEnded buffer_dur={:.2}s wall={}ms hit_cap={} heard_speech={}",
+                                        dur,
+                                        wall_ms,
+                                        hit_cap,
+                                        vad.heard_speech()
+                                    );
                                     let buf = std::mem::take(buffer);
                                     if events
                                         .send(WakeEvent::SpeechEnded { buffer: buf, duration_s: dur })
@@ -205,6 +243,10 @@ impl WakeListener {
                                     {
                                         return;
                                     }
+                                    // Clear stale detection state so the buffer
+                                    // that just triggered can't immediately
+                                    // re-fire on the next listening frames.
+                                    detector.reset();
                                     phase = Phase::Listening;
                                 }
                             }

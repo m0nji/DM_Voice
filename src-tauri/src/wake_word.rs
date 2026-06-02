@@ -18,6 +18,14 @@ pub const AVAILABLE_MODELS: &[(&str, &str, &str)] = &[
 /// Samples per detection frame: 16 kHz, 80 ms. == oww_rs::oww::OWW_MODEL_CHUNK_SIZE.
 pub const FRAME_LENGTH: usize = 1280;
 
+/// Per-frame detector output. `probability` is oww-rs's debounced running
+/// average (0.0 until a detection is building), useful for diagnostics.
+#[derive(Debug, Clone, Copy)]
+pub struct Detection {
+    pub detected: bool,
+    pub probability: f32,
+}
+
 pub struct WakeWordDetector {
     model: oww_rs::oww::OwwModel,
 }
@@ -49,10 +57,21 @@ impl WakeWordDetector {
         FRAME_LENGTH
     }
 
-    /// Feed exactly `FRAME_LENGTH` samples. Returns true on a wake-word hit.
+    /// Feed exactly `FRAME_LENGTH` samples. Returns the detection outcome.
     /// oww-rs debounces internally, so a single noisy frame won't fire.
-    pub fn detect(&mut self, samples: &[f32]) -> bool {
-        self.model.detection(samples.to_vec()).detected
+    pub fn detect(&mut self, samples: &[f32]) -> Detection {
+        let d = self.model.detection(samples.to_vec());
+        Detection {
+            detected: d.detected,
+            probability: d.probability,
+        }
+    }
+
+    /// Clear detector state between listening sessions, so a stale detection
+    /// buffer from a prior utterance cannot immediately re-fire after a
+    /// recording ends.
+    pub fn reset(&mut self) {
+        self.model.reset();
     }
 }
 
@@ -79,7 +98,7 @@ mod tests {
         let frame = d.frame_length();
         let mut fired = false;
         for _ in 0..50 {
-            if d.detect(&vec![0.0f32; frame]) { fired = true; }
+            if d.detect(&vec![0.0f32; frame]).detected { fired = true; }
         }
         assert!(!fired, "silence triggered the wake word");
     }

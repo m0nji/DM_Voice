@@ -52,12 +52,14 @@ impl WakeWordSensitivity {
     }
 
     /// Detection threshold fed to the wake-word model. Lower threshold = more
-    /// sensitive = "High". Values from the Phase 0 calibration; re-tune later.
+    /// sensitive = "High". Raised from the initial Phase 0 values after live-mic
+    /// testing showed too many false triggers on ambient noise at 0.5 — real
+    /// "Hey Jarvis" hits average ~0.99, so these leave ample margin.
     pub fn threshold(self) -> f32 {
         match self {
-            Self::Low => 0.7,
-            Self::Medium => 0.5,
-            Self::High => 0.35,
+            Self::Low => 0.85,
+            Self::Medium => 0.7,
+            Self::High => 0.5,
         }
     }
 }
