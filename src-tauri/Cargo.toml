@@ -31,6 +31,10 @@ futures-util = "0.3"
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 sha2 = "0.10"
+# SPIKE (feature/wake-word-handsfree): vendored openWakeWord inference.
+# default-features = false drops the crate's `mic` feature (cpal 0.17 / rubato 2.0)
+# so the app keeps linking only its own cpal 0.15 / rubato 0.15.
+oww-rs = { path = "vendor/oww-rs", default-features = false }
 
 # whisper-rs: GPU-Backend ist plattformspezifisch.
 #   macOS  → Metal (Apple Silicon).
@@ -44,6 +48,10 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Wind
 
 [dev-dependencies]
 tempfile = "3"
+# SPIKE-only: used by examples/wake_spike.rs to read WAV + init logging.
+hound = "3.5"
+env_logger = "0.11"
+log = "0.4"
 
 [profile.release]
 opt-level = 3
