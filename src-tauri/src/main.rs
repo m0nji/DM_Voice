@@ -12,6 +12,7 @@ mod sounds;
 mod stats;
 mod transcriber;
 mod updater;
+mod vad;
 
 use audio::{audio_stats, AudioCapture, TARGET_SAMPLE_RATE};
 use config::{build_vocabulary_prompt, load_config, save_config, AppConfig, TypingSpeedPreset};
