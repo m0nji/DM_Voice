@@ -104,6 +104,52 @@ fn set_sounds_enabled(enabled: bool, state: State<'_, SharedState>) {
 }
 
 #[tauri::command]
+fn set_wake_word_enabled(enabled: bool, state: State<'_, SharedState>, app: AppHandle) {
+    {
+        let mut cfg = state.config.lock().unwrap();
+        cfg.wake_word_enabled = enabled;
+        let _ = save_config(&cfg);
+    }
+    apply_wake_word_config(&app, &state);
+}
+
+#[tauri::command]
+fn set_wake_word_model(name: String, state: State<'_, SharedState>, app: AppHandle) {
+    {
+        let mut cfg = state.config.lock().unwrap();
+        cfg.wake_word_model = name;
+        let _ = save_config(&cfg);
+    }
+    apply_wake_word_config(&app, &state);
+}
+
+#[tauri::command]
+fn set_wake_word_sensitivity(
+    preset: String,
+    state: State<'_, SharedState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let parsed = config::WakeWordSensitivity::from_str(&preset)
+        .ok_or_else(|| format!("unknown sensitivity '{}'", preset))?;
+    {
+        let mut cfg = state.config.lock().unwrap();
+        cfg.wake_word_sensitivity = parsed;
+        save_config(&cfg).map_err(|e| e.to_string())?;
+    }
+    apply_wake_word_config(&app, &state);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_silence_timeout(ms: u32, state: State<'_, SharedState>) -> Result<(), String> {
+    let clamped = ms.clamp(1000, 8000);
+    let mut cfg = state.config.lock().unwrap();
+    cfg.silence_timeout_ms = clamped;
+    save_config(&cfg).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 fn set_custom_vocabulary(
     words: Vec<String>,
     state: State<'_, SharedState>,
@@ -702,6 +748,9 @@ fn on_shortcut_released(app: &AppHandle, state: &SharedState) {
     trigger_transcription(app.clone(), Arc::clone(state), elapsed);
 }
 
+// Replaced in the listener phase with real start/stop logic.
+fn apply_wake_word_config(_app: &AppHandle, _state: &SharedState) {}
+
 fn register_shortcut(app: &AppHandle, shortcut: &str, state: SharedState) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
     let app_clone = app.clone();
@@ -986,6 +1035,10 @@ fn main() {
             get_config,
             set_shortcut,
             set_sounds_enabled,
+            set_wake_word_enabled,
+            set_wake_word_model,
+            set_wake_word_sensitivity,
+            set_silence_timeout,
             set_typing_speed_preset,
             set_custom_vocabulary,
             get_current_month_stats,
