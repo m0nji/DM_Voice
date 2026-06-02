@@ -55,5 +55,9 @@ log = "0.4"
 
 [profile.release]
 opt-level = 3
-lto = true
-codegen-units = 1
+# Thin LTO + parallel codegen units instead of fat-LTO/cgu=1: cuts CI build
+# time substantially (esp. the tract ONNX deps on Windows/MSVC) with no
+# meaningful runtime impact — hot paths are whisper.cpp (Metal/Vulkan) and
+# tract, both dominated by their own kernels, not Rust cross-crate inlining.
+lto = "thin"
+codegen-units = 16
