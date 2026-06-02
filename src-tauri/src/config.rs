@@ -27,6 +27,41 @@ impl TypingSpeedPreset {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum WakeWordSensitivity {
+    Low,
+    Medium,
+    High,
+}
+
+impl Default for WakeWordSensitivity {
+    fn default() -> Self {
+        Self::Medium
+    }
+}
+
+impl WakeWordSensitivity {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "low" => Some(Self::Low),
+            "medium" => Some(Self::Medium),
+            "high" => Some(Self::High),
+            _ => None,
+        }
+    }
+
+    /// Detection threshold fed to the wake-word model. Lower threshold = more
+    /// sensitive = "High". Values from the Phase 0 calibration; re-tune later.
+    pub fn threshold(self) -> f32 {
+        match self {
+            Self::Low => 0.7,
+            Self::Medium => 0.5,
+            Self::High => 0.35,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppConfig {
     pub shortcut: String,
@@ -44,6 +79,14 @@ pub struct AppConfig {
     /// reappears.
     #[serde(default)]
     pub input_device: Option<String>,
+    #[serde(default)]
+    pub wake_word_enabled: bool,
+    #[serde(default = "default_wake_word_model")]
+    pub wake_word_model: String,
+    #[serde(default)]
+    pub wake_word_sensitivity: WakeWordSensitivity,
+    #[serde(default = "default_silence_timeout_ms")]
+    pub silence_timeout_ms: u32,
 }
 
 impl Default for AppConfig {
@@ -55,6 +98,10 @@ impl Default for AppConfig {
             typing_speed_preset: TypingSpeedPreset::default(),
             custom_vocabulary: Vec::new(),
             input_device: None,
+            wake_word_enabled: false,
+            wake_word_model: default_wake_word_model(),
+            wake_word_sensitivity: WakeWordSensitivity::default(),
+            silence_timeout_ms: default_silence_timeout_ms(),
         }
     }
 }
@@ -92,6 +139,15 @@ pub fn build_vocabulary_prompt(words: &[String]) -> Option<String> {
 
 fn default_sounds_enabled() -> bool {
     true
+}
+
+fn default_wake_word_model() -> String {
+    "hey_jarvis".to_string()
+}
+
+/// Clamp range is enforced in the setter command (1000..=8000).
+fn default_silence_timeout_ms() -> u32 {
+    2000
 }
 
 // Plattform-spezifischer Default-Hotkey:
@@ -147,6 +203,10 @@ mod tests {
                 typing_speed_preset: TypingSpeedPreset::Fast,
                 custom_vocabulary: vec!["Tauri".into(), "whisper-rs".into()],
                 input_device: Some("MacBook Pro Microphone".into()),
+                wake_word_enabled: true,
+                wake_word_model: "alexa".into(),
+                wake_word_sensitivity: WakeWordSensitivity::High,
+                silence_timeout_ms: 3500,
             };
             let contents = toml::to_string(&cfg).unwrap();
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -191,6 +251,24 @@ mod tests {
             build_vocabulary_prompt(&words),
             Some("Hello, World".into())
         );
+    }
+
+    #[test]
+    fn wake_word_defaults_are_off() {
+        let cfg = AppConfig::default();
+        assert!(!cfg.wake_word_enabled);
+        assert_eq!(cfg.wake_word_model, "hey_jarvis");
+        assert_eq!(cfg.wake_word_sensitivity, WakeWordSensitivity::Medium);
+        assert_eq!(cfg.silence_timeout_ms, 2000);
+    }
+
+    #[test]
+    fn missing_wake_word_fields_deserialize_to_defaults() {
+        // An old config.toml without the new keys must still load.
+        let old = "shortcut = \"Alt+Space\"\nmodel_name = \"large-v3-turbo\"\n";
+        let cfg: AppConfig = toml::from_str(old).unwrap();
+        assert!(!cfg.wake_word_enabled);
+        assert_eq!(cfg.silence_timeout_ms, 2000);
     }
 
     #[test]
