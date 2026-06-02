@@ -520,7 +520,8 @@ fn trigger_transcription(app: AppHandle, state: SharedState, expected_duration: 
         let mut audio = state.audio.lock().unwrap();
         audio.stop_and_get_buffer().unwrap_or_default()
     };
-    trigger_transcription_with_buffer(app, state, buffer, expected_duration);
+    let rearm = state.config.lock().unwrap().wake_word_enabled;
+    trigger_transcription_with_buffer(app, state, buffer, expected_duration, rearm);
 }
 
 fn trigger_transcription_with_buffer(
@@ -528,8 +529,30 @@ fn trigger_transcription_with_buffer(
     state: SharedState,
     buffer: Vec<f32>,
     expected_duration: Duration,
+    rearm_listener: bool,
 ) {
     tauri::async_runtime::spawn(async move {
+        // Re-arm the wake-word listener when this dictation finishes, on EVERY
+        // exit path. Only set for the push-to-talk path (which paused the
+        // listener on key-press); the wake-word path leaves its own stream
+        // running and passes rearm_listener=false.
+        struct RearmGuard {
+            app: AppHandle,
+            state: SharedState,
+            rearm: bool,
+        }
+        impl Drop for RearmGuard {
+            fn drop(&mut self) {
+                if self.rearm {
+                    apply_wake_word_config(&self.app, &self.state);
+                }
+            }
+        }
+        let _rearm = RearmGuard {
+            app: app.clone(),
+            state: Arc::clone(&state),
+            rearm: rearm_listener,
+        };
         let expected_s = expected_duration.as_secs_f32();
         let astats = audio_stats(&buffer, TARGET_SAMPLE_RATE);
         let recording_s = astats.duration_secs;
@@ -691,10 +714,15 @@ fn on_shortcut_pressed(app: &AppHandle, state: &SharedState) {
     *state.frontmost_pid.lock().unwrap() = pid;
     dlog!("on_shortcut_pressed: captured frontmost_pid={:?}", pid);
 
-    let (sounds_enabled, preferred_device) = {
+    let (sounds_enabled, preferred_device, wake_enabled) = {
         let cfg = state.config.lock().unwrap();
-        (cfg.sounds_enabled, cfg.input_device.clone())
+        (cfg.sounds_enabled, cfg.input_device.clone(), cfg.wake_word_enabled)
     };
+    if wake_enabled {
+        // Pause the continuous listener so its stream and the PTT stream never
+        // run at once. Re-armed after this dictation completes.
+        state.wake_listener.lock().unwrap().stop();
+    }
     sounds::play_start(sounds_enabled);
 
     let mut audio = state.audio.lock().unwrap();
@@ -753,6 +781,9 @@ fn on_shortcut_released(app: &AppHandle, state: &SharedState) {
         let _ = audio.stop_and_get_buffer();
         drop(audio);
         hide_overlay(app);
+        if state.config.lock().unwrap().wake_word_enabled {
+            apply_wake_word_config(app, state);
+        }
         return;
     }
     let sounds_enabled = state.config.lock().unwrap().sounds_enabled;
@@ -826,6 +857,7 @@ fn apply_wake_word_config(app: &AppHandle, state: &SharedState) {
                             Arc::clone(&state2),
                             buffer,
                             Duration::from_secs_f32(duration_s),
+                            false,
                         );
                     }
                 }
