@@ -48,6 +48,7 @@ impl SilenceTracker {
     }
 
     /// Whether any speech was observed (used to skip empty transcriptions).
+    #[allow(dead_code)]
     pub fn heard_speech(&self) -> bool {
         self.spoke
     }

@@ -44,6 +44,7 @@ impl WakeWordDetector {
     }
 
     /// Number of f32 samples (16 kHz mono) expected per `detect` call.
+    #[allow(dead_code)]
     pub fn frame_length(&self) -> usize {
         FRAME_LENGTH
     }

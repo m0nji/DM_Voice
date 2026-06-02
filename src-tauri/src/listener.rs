@@ -48,6 +48,7 @@ impl WakeListener {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_running(&self) -> bool {
         self.stream.is_some()
     }

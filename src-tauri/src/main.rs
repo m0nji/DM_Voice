@@ -144,11 +144,18 @@ fn set_wake_word_sensitivity(
 }
 
 #[tauri::command]
-fn set_silence_timeout(ms: u32, state: State<'_, SharedState>) -> Result<(), String> {
+fn set_silence_timeout(
+    ms: u32,
+    state: State<'_, SharedState>,
+    app: AppHandle,
+) -> Result<(), String> {
     let clamped = ms.clamp(1000, 8000);
-    let mut cfg = state.config.lock().unwrap();
-    cfg.silence_timeout_ms = clamped;
-    save_config(&cfg).map_err(|e| e.to_string())?;
+    {
+        let mut cfg = state.config.lock().unwrap();
+        cfg.silence_timeout_ms = clamped;
+        save_config(&cfg).map_err(|e| e.to_string())?;
+    }
+    apply_wake_word_config(&app, &state);
     Ok(())
 }
 
