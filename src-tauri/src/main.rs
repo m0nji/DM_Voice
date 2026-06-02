@@ -5,6 +5,7 @@ mod dlog;
 mod audio;
 mod config;
 mod injector;
+mod listener;
 mod models;
 mod permissions;
 mod shortcut;
@@ -70,6 +71,7 @@ struct AppState {
     // looking up the managed state.
     update: updater::SharedUpdateState,
     usage_stats: Arc<UsageStats>,
+    wake_listener: Mutex<listener::WakeListener>,
 }
 
 type SharedState = Arc<AppState>;
@@ -514,12 +516,21 @@ fn transcription_text_for_log(text: &str) -> &'static str {
 }
 
 fn trigger_transcription(app: AppHandle, state: SharedState, expected_duration: Duration) {
+    let buffer = {
+        let mut audio = state.audio.lock().unwrap();
+        audio.stop_and_get_buffer().unwrap_or_default()
+    };
+    trigger_transcription_with_buffer(app, state, buffer, expected_duration);
+}
+
+fn trigger_transcription_with_buffer(
+    app: AppHandle,
+    state: SharedState,
+    buffer: Vec<f32>,
+    expected_duration: Duration,
+) {
     tauri::async_runtime::spawn(async move {
         let expected_s = expected_duration.as_secs_f32();
-        let buffer = {
-            let mut audio = state.audio.lock().unwrap();
-            audio.stop_and_get_buffer().unwrap_or_default()
-        };
         let astats = audio_stats(&buffer, TARGET_SAMPLE_RATE);
         let recording_s = astats.duration_secs;
         dlog!(
@@ -749,8 +760,79 @@ fn on_shortcut_released(app: &AppHandle, state: &SharedState) {
     trigger_transcription(app.clone(), Arc::clone(state), elapsed);
 }
 
-// Replaced in the listener phase with real start/stop logic.
-fn apply_wake_word_config(_app: &AppHandle, _state: &SharedState) {}
+fn wake_models_dir(app: &AppHandle) -> std::path::PathBuf {
+    if let Ok(res) = app.path().resource_dir() {
+        let p = res.join("resources").join("wakeword");
+        if p.join("hey_jarvis_v0.1.onnx").exists() {
+            return p;
+        }
+    }
+    // Dev fallback (cargo run / tauri dev — resources not bundled).
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/wakeword")
+}
+
+fn apply_wake_word_config(app: &AppHandle, state: &SharedState) {
+    let (enabled, model, sens, timeout, device) = {
+        let cfg = state.config.lock().unwrap();
+        (
+            cfg.wake_word_enabled,
+            cfg.wake_word_model.clone(),
+            cfg.wake_word_sensitivity,
+            cfg.silence_timeout_ms,
+            cfg.input_device.clone(),
+        )
+    };
+    let mut listener = state.wake_listener.lock().unwrap();
+    if !enabled {
+        listener.stop();
+        return;
+    }
+    let models_dir = wake_models_dir(app);
+    let (tx, rx) = std::sync::mpsc::channel::<listener::WakeEvent>();
+    if let Err(e) = listener.start(
+        device.as_deref(),
+        models_dir,
+        &model,
+        sens.threshold(),
+        timeout,
+        tx,
+    ) {
+        dlog!("wake: listener start failed: {}", e);
+        return;
+    }
+    drop(listener);
+
+    // Bridge listener events to overlay + transcription on a worker thread.
+    let app2 = app.clone();
+    let state2 = Arc::clone(state);
+    std::thread::Builder::new()
+        .name("dm-voice-wake-events".into())
+        .spawn(move || {
+            for ev in rx {
+                match ev {
+                    listener::WakeEvent::Detected => {
+                        let sounds = state2.config.lock().unwrap().sounds_enabled;
+                        sounds::play_start(sounds);
+                        // Capture the paste target like the shortcut path does.
+                        let pid = injector::frontmost_app_pid();
+                        *state2.frontmost_pid.lock().unwrap() = pid;
+                        show_overlay(&app2, "recording");
+                    }
+                    listener::WakeEvent::SpeechEnded { buffer, duration_s } => {
+                        let sounds = state2.config.lock().unwrap().sounds_enabled;
+                        sounds::play_end(sounds);
+                        trigger_transcription_with_buffer(
+                            app2.clone(),
+                            Arc::clone(&state2),
+                            buffer,
+                            Duration::from_secs_f32(duration_s),
+                        );
+                    }
+                }
+            }
+        })
+        .ok();
+}
 
 fn register_shortcut(app: &AppHandle, shortcut: &str, state: SharedState) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
@@ -1019,6 +1101,7 @@ fn main() {
         frontmost_pid: Mutex::new(None),
         update: Arc::clone(&update_state),
         usage_stats: Arc::clone(&usage_stats),
+        wake_listener: Mutex::new(listener::WakeListener::new()),
     });
 
     tauri::Builder::default()
@@ -1240,6 +1323,8 @@ fn main() {
             // Register global shortcut
             let shortcut = state.config.lock().unwrap().shortcut.clone();
             register_shortcut(app.handle(), &shortcut, Arc::clone(&state));
+
+            apply_wake_word_config(app.handle(), &state);
 
             // Background update check ~30s after start. When an update is
             // found, the tray menu rebuild adds the "Install update" item and
