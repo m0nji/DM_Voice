@@ -184,6 +184,34 @@
     </div>
 
     <div class="field">
+      <label data-i18n="settings.handsfree.label">Hands-free mode</label>
+      <div class="toggle-row">
+        <span class="toggle-label" data-i18n="settings.handsfree.toggle">Start dictation with a wake word</span>
+        <input type="checkbox" id="handsfree-toggle">
+      </div>
+      <div class="vocab-hint" data-i18n="settings.handsfree.hint"></div>
+      <div id="handsfree-options" style="margin-top:10px; display:none">
+        <div style="margin-bottom:8px">
+          <span class="typing-speed-label" data-i18n="settings.handsfree.wakeword">Wake word</span>
+          <select id="handsfree-wakeword"></select>
+        </div>
+        <div style="margin-bottom:8px">
+          <span class="typing-speed-label" data-i18n="settings.handsfree.sensitivity">Sensitivity</span>
+          <select id="handsfree-sensitivity">
+            <option value="low" data-i18n="settings.handsfree.sensitivity.low">Low</option>
+            <option value="medium" data-i18n="settings.handsfree.sensitivity.medium">Medium</option>
+            <option value="high" data-i18n="settings.handsfree.sensitivity.high">High</option>
+          </select>
+        </div>
+        <div>
+          <span class="typing-speed-label" data-i18n="settings.handsfree.silence">Stop after silence</span>
+          <input type="range" id="handsfree-silence" min="1000" max="8000" step="500">
+          <span id="handsfree-silence-value"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
       <label data-i18n="settings.permissions.label">Permissions</label>
       <div id="perm-list">
         <div class="perm-row" id="perm-mic">

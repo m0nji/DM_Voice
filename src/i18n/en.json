@@ -9,6 +9,17 @@
   "settings.sounds.label": "Sounds",
   "settings.sounds.toggle": "Play sounds",
 
+  "settings.handsfree.label": "Hands-free mode",
+  "settings.handsfree.toggle": "Start dictation with a wake word",
+  "settings.handsfree.hint": "When on, the microphone listens continuously and starts dictation when you say the wake word. Recording stops after a pause. The macOS mic indicator stays on while enabled.",
+  "settings.handsfree.wakeword": "Wake word",
+  "settings.handsfree.sensitivity": "Sensitivity",
+  "settings.handsfree.sensitivity.low": "Low",
+  "settings.handsfree.sensitivity.medium": "Medium",
+  "settings.handsfree.sensitivity.high": "High",
+  "settings.handsfree.silence": "Stop after silence",
+  "settings.handsfree.silenceValue": "{secs}s",
+
   "settings.timesaved.label": "Time Saved",
   "settings.timesaved.empty": "Start dictating to see your stats.",
   "settings.timesaved.lessThanMinute": "less than a minute",

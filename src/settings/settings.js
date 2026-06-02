@@ -13,6 +13,7 @@ const PRESET_WPM = { beginner: 24, average: 40, fast: 60 };
   applyI18n();
   initShortcut();
   initSounds();
+  initHandsfree();
   initTimesaved();
   initVocabulary();
   initModels();
@@ -86,6 +87,52 @@ function initSounds() {
   });
   soundsToggle.addEventListener('change', () => {
     invoke('set_sounds_enabled', { enabled: soundsToggle.checked });
+  });
+}
+
+// ─── Hands-free (wake word) ──────────────────────────────────────────────────
+const WAKE_WORDS = ['hey_jarvis', 'alexa', 'hey_mycroft']; // keep in sync with wake_word.rs AVAILABLE_MODELS
+function initHandsfree() {
+  const toggle = document.getElementById('handsfree-toggle');
+  const options = document.getElementById('handsfree-options');
+  const wakeSel = document.getElementById('handsfree-wakeword');
+  const sensSel = document.getElementById('handsfree-sensitivity');
+  const silence = document.getElementById('handsfree-silence');
+  const silenceVal = document.getElementById('handsfree-silence-value');
+
+  WAKE_WORDS.forEach(w => {
+    const o = document.createElement('option');
+    o.value = w;
+    o.textContent = w.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    wakeSel.appendChild(o);
+  });
+
+  function renderSilence(ms) {
+    silenceVal.textContent = t('settings.handsfree.silenceValue', { secs: (ms / 1000).toFixed(1) });
+  }
+
+  invoke('get_config').then(cfg => {
+    toggle.checked = !!cfg.wake_word_enabled;
+    options.style.display = toggle.checked ? 'block' : 'none';
+    wakeSel.value = cfg.wake_word_model || 'hey_jarvis';
+    sensSel.value = cfg.wake_word_sensitivity || 'medium';
+    silence.value = cfg.silence_timeout_ms || 2000;
+    renderSilence(silence.value);
+  });
+
+  toggle.addEventListener('change', () => {
+    options.style.display = toggle.checked ? 'block' : 'none';
+    invoke('set_wake_word_enabled', { enabled: toggle.checked });
+  });
+  wakeSel.addEventListener('change', () => {
+    invoke('set_wake_word_model', { name: wakeSel.value });
+  });
+  sensSel.addEventListener('change', () => {
+    invoke('set_wake_word_sensitivity', { preset: sensSel.value }).catch(console.error);
+  });
+  silence.addEventListener('input', () => renderSilence(silence.value));
+  silence.addEventListener('change', () => {
+    invoke('set_silence_timeout', { ms: parseInt(silence.value, 10) }).catch(console.error);
   });
 }
 
