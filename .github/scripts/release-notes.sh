@@ -30,7 +30,7 @@ fi
 # subjects (feat:, fix:, docs:, refactor:, …) that read well as bullets.
 changelog=$(
     git log "$range" --no-merges --pretty='format:- %s' \
-        | grep -vE '^- (release|chore):' \
+        | grep -vE '^- (release|chore)(\([^)]*\))?:' \
         || true
 )
 
