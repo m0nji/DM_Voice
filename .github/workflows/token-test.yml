@@ -1,8 +1,8 @@
 name: Token Test
 
-# Throwaway diagnostic: checks whether the Actions GITHUB_TOKEN can currently
-# create + delete a GitHub release. Used to tell apart a transient secondary
-# rate limit from a persistent permission problem. Delete after use.
+# Throwaway diagnostic: can the Actions GITHUB_TOKEN create a release for the
+# EXISTING v0.5.4 tag? Creates it as a prerelease (so it never becomes the
+# "Latest" served to the updater). Delete this workflow after use.
 
 on:
   workflow_dispatch:
@@ -14,19 +14,15 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Try to create and delete a throwaway release
+      - name: Try to create the v0.5.4 release (prerelease) for the existing tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          SHA: ${{ github.sha }}
         run: |
-          tag="tokentest-${GITHUB_RUN_ID}"
-          echo "Creating throwaway release with tag $tag ..."
-          if gh release create "$tag" --repo "$REPO" --target "$SHA" \
-               --title "token test" --notes "diagnostic — safe to ignore"; then
-            echo "CREATE_OK"
-            gh release delete "$tag" --repo "$REPO" --cleanup-tag --yes && echo "CLEANUP_OK"
+          if gh release create v0.5.4 --repo "$REPO" --prerelease \
+               --title "DM Voice v0.5.4" --notes "staging — assets uploading"; then
+            echo "CREATE_OK — token can create v0.5.4"
           else
-            echo "CREATE_FAILED — token cannot write releases right now"
+            echo "CREATE_FAILED — token cannot create v0.5.4 release"
             exit 1
           fi
