@@ -112,7 +112,12 @@ jobs:
           releaseName: "DM Voice ${{ github.ref_name }}"
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
-          prerelease: false
+          # Mac-only test tags (vX.Y.Z-mac) publish as a prerelease so they
+          # never become GitHub's "Latest" — otherwise tauri-action's
+          # auto-generated mac-only latest.json would be served from the
+          # /releases/latest updater endpoint and break Windows clients (no
+          # windows entry) while pushing an untested build to Mac clients.
+          prerelease: ${{ endsWith(github.ref_name, '-mac') }}
           args: --target ${{ matrix.target }}
           projectPath: src-tauri
 
