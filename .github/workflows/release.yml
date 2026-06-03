@@ -117,6 +117,11 @@ jobs:
           projectPath: src-tauri
 
   build-windows:
+    # Skip Windows for mac-only test releases: tag the build `vX.Y.Z-mac` to
+    # build + publish only the macOS DMG (the updater-manifest job depends on
+    # this job, so it skips too — no latest.json, so existing installs aren't
+    # auto-updated to a test build). A clean `vX.Y.Z` tag builds everything.
+    if: ${{ !endsWith(github.ref_name, '-mac') }}
     strategy:
       fail-fast: false
       matrix:
