@@ -1,0 +1,32 @@
+name: Token Test
+
+# Throwaway diagnostic: checks whether the Actions GITHUB_TOKEN can currently
+# create + delete a GitHub release. Used to tell apart a transient secondary
+# rate limit from a persistent permission problem. Delete after use.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Try to create and delete a throwaway release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          tag="tokentest-${GITHUB_RUN_ID}"
+          echo "Creating throwaway release with tag $tag ..."
+          if gh release create "$tag" --repo "$REPO" --target "$SHA" \
+               --title "token test" --notes "diagnostic — safe to ignore"; then
+            echo "CREATE_OK"
+            gh release delete "$tag" --repo "$REPO" --cleanup-tag --yes && echo "CLEANUP_OK"
+          else
+            echo "CREATE_FAILED — token cannot write releases right now"
+            exit 1
+          fi
