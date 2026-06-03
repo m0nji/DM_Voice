@@ -4,9 +4,12 @@ const label = document.getElementById('label');
 
 const BASE = 4;
 const MAX  = 26;
-// Boost on the live amplitude so speech produces a clearly visible swing
-// (capped at 1.0). Quiet/idle stays flat.
-const AMP_GAIN = 1.25;
+// The live amplitude payload is the audio RMS (0..1), which is tiny for speech
+// (~0.03–0.15). A linear scale barely moves the bars, so we map it through a
+// perceptual sqrt curve (lifts quiet/medium levels) with a strong gain so
+// normal speech fills most of the bar height. Silence still collapses to BASE.
+// Tune the liveliness here: higher gain = taller bars for the same loudness.
+const AMP_GAIN = 2.4;
 
 let state = 'idle';
 let pulseFrame = null;
@@ -91,7 +94,7 @@ const { invoke } = window.__TAURI__.core;
 
 event.listen('amplitude', (e) => {
   if (state !== 'recording') return;
-  const amp = Math.min(1.0, e.payload * AMP_GAIN);
+  const amp = Math.min(1.0, Math.sqrt(Math.max(0, e.payload)) * AMP_GAIN);
   setHeights(bars.map((_, i) => {
     const wave = 0.5 + 0.5 * Math.sin(Date.now() / 80 + i * 1.2);
     return BASE + amp * wave * (MAX - BASE);
