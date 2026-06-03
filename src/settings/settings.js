@@ -13,6 +13,7 @@ const PRESET_WPM = { beginner: 24, average: 40, fast: 60 };
   applyI18n();
   initShortcut();
   initSounds();
+  initPill();
   initHandsfree();
   initTimesaved();
   initVocabulary();
@@ -87,6 +88,17 @@ function initSounds() {
   });
   soundsToggle.addEventListener('change', () => {
     invoke('set_sounds_enabled', { enabled: soundsToggle.checked });
+  });
+}
+
+// ─── Overlay pill (always-visible / draggable) ───────────────────────────────
+function initPill() {
+  const pillToggle = document.getElementById('pill-toggle');
+  invoke('get_config').then(cfg => {
+    pillToggle.checked = !!cfg.pill_always_visible;
+  });
+  pillToggle.addEventListener('change', () => {
+    invoke('set_pill_always_visible', { enabled: pillToggle.checked });
   });
 }
 

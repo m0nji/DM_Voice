@@ -14,27 +14,45 @@
   }
   #pill {
     position: absolute;
-    left: 10px;
+    left: 50%;
     top: 6px;
-    width: 200px;
+    /* Auto width so idle "Ready" is compact and recording (with bars) is wider.
+       Centered within the fixed-width transparent window via translateX(-50%). */
+    width: auto;
+    max-width: 200px;
     height: 40px;
     background: rgba(18, 18, 20, 0.93);
     border-radius: 20px;
+    /* Light edge + soft glow so the pill stands out against dark backgrounds. */
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 2px 9px rgba(0, 0, 0, 0.45);
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 7px;
     padding: 0 16px;
     opacity: 0;
-    transform: scale(0.82) translateY(4px);
-    transition: opacity 140ms ease, transform 140ms ease;
+    transform: translateX(-50%) scale(0.82) translateY(4px);
+    transform-origin: center;
+    transition: opacity 140ms ease, transform 140ms ease, background 200ms ease;
     will-change: opacity, transform;
     -webkit-font-smoothing: antialiased;
   }
   #pill.visible {
     opacity: 1;
-    transform: scale(1) translateY(0);
+    transform: translateX(-50%) scale(1) translateY(0);
   }
+  /* In pinned (always-visible) mode the pill is draggable. Children must not
+     swallow the mousedown, or the Tauri drag region won't engage. */
+  #pill.pinned { cursor: grab; }
+  #pill.pinned:active { cursor: grabbing; }
+  #pill.pinned > * { pointer-events: none; }
+  /* Dimmed idle "Ready" look shown while pinned and not recording. Flat gray
+     bars stay visible; auto-width keeps the pill compact (no dead side space). */
+  #pill.ready { background: rgba(18, 18, 20, 0.82); }
+  #pill.ready #dot { background: #9ca3af; animation: none; }
+  #pill.ready .bar { background: #9ca3af; }
+  #pill.ready #label { color: rgba(255, 255, 255, 0.55); }
   #dot {
     width: 7px;
     height: 7px;
@@ -63,7 +81,7 @@
     display: flex;
     gap: 2px;
     align-items: center;
-    height: 22px;
+    height: 28px;
     flex-shrink: 0;
   }
   .bar {

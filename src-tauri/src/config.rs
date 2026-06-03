@@ -89,6 +89,16 @@ pub struct AppConfig {
     pub wake_word_sensitivity: WakeWordSensitivity,
     #[serde(default = "default_silence_timeout_ms")]
     pub silence_timeout_ms: u32,
+    /// When true, the overlay pill stays visible at all times (in a dimmed
+    /// "Ready" idle state) and can be dragged to a custom position. When false
+    /// (default), the overlay only appears during recording at bottom-center.
+    #[serde(default)]
+    pub pill_always_visible: bool,
+    /// Custom physical screen position of the pinned pill (top-left of the
+    /// overlay window). `None` means "not placed yet" → falls back to the
+    /// default bottom-center position. Only honored while `pill_always_visible`.
+    #[serde(default)]
+    pub pill_position: Option<(i32, i32)>,
 }
 
 impl Default for AppConfig {
@@ -104,6 +114,8 @@ impl Default for AppConfig {
             wake_word_model: default_wake_word_model(),
             wake_word_sensitivity: WakeWordSensitivity::default(),
             silence_timeout_ms: default_silence_timeout_ms(),
+            pill_always_visible: false,
+            pill_position: None,
         }
     }
 }
@@ -209,6 +221,8 @@ mod tests {
                 wake_word_model: "alexa".into(),
                 wake_word_sensitivity: WakeWordSensitivity::High,
                 silence_timeout_ms: 3500,
+                pill_always_visible: true,
+                pill_position: Some((120, 880)),
             };
             let contents = toml::to_string(&cfg).unwrap();
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -271,6 +285,8 @@ mod tests {
         let cfg: AppConfig = toml::from_str(old).unwrap();
         assert!(!cfg.wake_word_enabled);
         assert_eq!(cfg.silence_timeout_ms, 2000);
+        assert!(!cfg.pill_always_visible);
+        assert_eq!(cfg.pill_position, None);
     }
 
     #[test]

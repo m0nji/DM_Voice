@@ -107,6 +107,35 @@ fn set_sounds_enabled(enabled: bool, state: State<'_, SharedState>) {
 }
 
 #[tauri::command]
+fn set_pill_always_visible(enabled: bool, state: State<'_, SharedState>, app: AppHandle) {
+    {
+        let mut cfg = state.config.lock().unwrap();
+        cfg.pill_always_visible = enabled;
+        let _ = save_config(&cfg);
+    }
+    apply_pill_pin_state(&app, &state);
+}
+
+/// Current physical top-left of the overlay window. Used by the JS drag handler
+/// as the anchor it offsets the cursor delta from.
+#[tauri::command]
+fn overlay_outer_position(app: AppHandle) -> (i32, i32) {
+    app.get_webview_window("overlay")
+        .and_then(|w| w.outer_position().ok())
+        .map(|p| (p.x, p.y))
+        .unwrap_or((0, 0))
+}
+
+/// Move the overlay window to a physical position. Called repeatedly while the
+/// user drags the pinned pill; the Moved listener persists the final spot.
+#[tauri::command]
+fn overlay_set_position(x: i32, y: i32, app: AppHandle) {
+    if let Some(w) = app.get_webview_window("overlay") {
+        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+}
+
+#[tauri::command]
 fn set_wake_word_enabled(enabled: bool, state: State<'_, SharedState>, app: AppHandle) {
     {
         let mut cfg = state.config.lock().unwrap();
@@ -276,19 +305,39 @@ async fn download_model(filename: String, app: AppHandle) -> Result<(), String> 
     .map_err(|e| e.to_string())
 }
 
+/// Whether the overlay pill is currently in "always visible / draggable" mode.
+/// Read from the live config so both the recording path and the toggle command
+/// agree on behavior without threading state through every call site.
+fn pill_is_pinned(app: &AppHandle) -> bool {
+    app.try_state::<SharedState>()
+        .map(|s| s.config.lock().unwrap().pill_always_visible)
+        .unwrap_or(false)
+}
+
+/// Position the overlay at bottom-center of the primary monitor
+/// (like SuperWhisper mini). Used when the pill is not pinned, or pinned with
+/// no saved position yet.
+fn place_overlay_bottom_center(w: &tauri::WebviewWindow) {
+    if let Ok(Some(monitor)) = w.primary_monitor() {
+        let mw = monitor.size().width as f64;
+        let mh = monitor.size().height as f64;
+        let scale = monitor.scale_factor();
+        let overlay_w = OVERLAY_WIDTH * scale;
+        let overlay_h = OVERLAY_HEIGHT * scale;
+        let x = ((mw - overlay_w) / 2.0) as i32;
+        let y = (mh - overlay_h - OVERLAY_BOTTOM_MARGIN * scale) as i32;
+        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+}
+
 fn show_overlay(app: &AppHandle, state_name: &str) {
     if let Some(w) = app.get_webview_window("overlay") {
-        configure_overlay_window(&w);
-        // Position at bottom-center of the primary monitor (like SuperWhisper mini)
-        if let Ok(Some(monitor)) = w.primary_monitor() {
-            let mw = monitor.size().width as f64;
-            let mh = monitor.size().height as f64;
-            let scale = monitor.scale_factor();
-            let overlay_w = OVERLAY_WIDTH * scale;
-            let overlay_h = OVERLAY_HEIGHT * scale;
-            let x = ((mw - overlay_w) / 2.0) as i32;
-            let y = (mh - overlay_h - OVERLAY_BOTTOM_MARGIN * scale) as i32;
-            let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+        let pinned = pill_is_pinned(app);
+        configure_overlay_window(&w, pinned);
+        // When pinned, the user has placed the pill themselves — keep it where
+        // it is. Only the transient (non-pinned) overlay snaps to bottom-center.
+        if !pinned {
+            place_overlay_bottom_center(&w);
         }
         let _ = w.show();
         let _ = app.emit("recording-state", state_name);
@@ -296,19 +345,57 @@ fn show_overlay(app: &AppHandle, state_name: &str) {
 }
 
 fn hide_overlay(app: &AppHandle) {
+    // The JS overlay treats "idle" as: hidden when not pinned, dimmed "Ready"
+    // pill when pinned. We emit idle either way; only the window visibility
+    // differs.
     let _ = app.emit("recording-state", "idle");
-    if let Some(w) = app.get_webview_window("overlay") {
-        let _ = w.hide();
+    if !pill_is_pinned(app) {
+        if let Some(w) = app.get_webview_window("overlay") {
+            let _ = w.hide();
+        }
     }
 }
 
-fn configure_overlay_window(w: &tauri::WebviewWindow) {
+fn configure_overlay_window(w: &tauri::WebviewWindow, pinned: bool) {
     // Do NOT call set_background_color here — it can re-enable isOpaque on the
     // WKWebView and break the transparency set by transparent:true in the config.
-    let _ = w.set_focusable(false);
-    let _ = w.set_ignore_cursor_events(true);
+    // Pinned → the window must be focusable, otherwise macOS delivers no mouse
+    // events to it and the pill can't be dragged. When not pinned we keep it
+    // non-focusable so the recording overlay never steals focus from the app
+    // you're dictating into.
+    let _ = w.set_focusable(pinned);
+    // Pinned → accept the cursor so the pill can be dragged; otherwise let
+    // clicks pass straight through to whatever is underneath.
+    let _ = w.set_ignore_cursor_events(!pinned);
     let _ = w.set_shadow(false);
     set_webview_transparent(w);
+}
+
+/// Apply the current pinned/position config to the overlay window: configure
+/// cursor handling, place + show the dimmed "Ready" pill when pinned, or hide
+/// it when not. Also broadcasts the pinned flag so the overlay JS renders the
+/// idle state correctly. Called at startup and whenever the toggle changes.
+fn apply_pill_pin_state(app: &AppHandle, state: &SharedState) {
+    let (pinned, pos) = {
+        let cfg = state.config.lock().unwrap();
+        (cfg.pill_always_visible, cfg.pill_position)
+    };
+    if let Some(w) = app.get_webview_window("overlay") {
+        configure_overlay_window(&w, pinned);
+        if pinned {
+            match pos {
+                Some((x, y)) => {
+                    let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+                }
+                None => place_overlay_bottom_center(&w),
+            }
+            let _ = w.show();
+        } else {
+            let _ = w.hide();
+        }
+        let _ = app.emit("overlay-pinned", pinned);
+        let _ = app.emit("recording-state", "idle");
+    }
 }
 
 /// Force WKWebView (and any wrapping NSViews) to be non-opaque using raw Objective-C.
@@ -1158,6 +1245,9 @@ fn main() {
             get_config,
             set_shortcut,
             set_sounds_enabled,
+            set_pill_always_visible,
+            overlay_outer_position,
+            overlay_set_position,
             set_wake_word_enabled,
             set_wake_word_model,
             set_wake_word_sensitivity,
@@ -1177,9 +1267,43 @@ fn main() {
             updater::install_update,
         ])
         .setup(move |app| {
+            // Persist the pill's position when the user drags it (pinned mode
+            // only). Moved fires continuously during a drag, so we debounce with
+            // a generation counter: each event schedules a trailing save 500ms
+            // later that only writes if it's still the latest move.
             if let Some(w) = app.get_webview_window("overlay") {
-                configure_overlay_window(&w);
+                let move_state = Arc::clone(&state);
+                let move_gen = Arc::new(Mutex::new(0u64));
+                w.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Moved(pos) = event {
+                        if !move_state.config.lock().unwrap().pill_always_visible {
+                            return;
+                        }
+                        let (px, py) = (pos.x, pos.y);
+                        let my_gen = {
+                            let mut g = move_gen.lock().unwrap();
+                            *g += 1;
+                            *g
+                        };
+                        let gen2 = Arc::clone(&move_gen);
+                        let st2 = Arc::clone(&move_state);
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(500));
+                            if *gen2.lock().unwrap() != my_gen {
+                                return; // a newer move superseded this one
+                            }
+                            let mut cfg = st2.config.lock().unwrap();
+                            if cfg.pill_always_visible {
+                                cfg.pill_position = Some((px, py));
+                                let _ = save_config(&cfg);
+                            }
+                        });
+                    }
+                });
             }
+            // Configure cursor handling + show the dimmed "Ready" pill if the
+            // user has the always-visible toggle on.
+            apply_pill_pin_state(app.handle(), &state);
 
             // Point whisper's Metal backend to the bundled ggml-metal.metal shader.
             // ggml-metal.m checks GGML_METAL_PATH_RESOURCES before falling back to
