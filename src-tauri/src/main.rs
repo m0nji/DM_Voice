@@ -943,6 +943,11 @@ fn apply_wake_word_config(app: &AppHandle, state: &SharedState) {
                         *state2.frontmost_pid.lock().unwrap() = pid;
                         show_overlay(&app2, "recording");
                     }
+                    listener::WakeEvent::Amplitude(amp) => {
+                        // Drive the waveform overlay, mirroring the push-to-talk
+                        // polling loop's `app.emit("amplitude", ...)`.
+                        let _ = app2.emit("amplitude", amp);
+                    }
                     listener::WakeEvent::SpeechEnded { buffer, duration_s } => {
                         let sounds = state2.config.lock().unwrap().sounds_enabled;
                         sounds::play_end(sounds);

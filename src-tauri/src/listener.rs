@@ -4,7 +4,7 @@
 //! Never runs concurrently with the push-to-talk capture stream (the app stops
 //! this before any push-to-talk dictation begins).
 
-use crate::audio::{downmix_to_mono, TARGET_SAMPLE_RATE};
+use crate::audio::{downmix_to_mono, rms_amplitude, TARGET_SAMPLE_RATE};
 use crate::vad::SilenceTracker;
 use crate::wake_word::{WakeWordDetector, FRAME_LENGTH};
 use anyhow::Result;
@@ -23,6 +23,10 @@ const RESAMPLE_CHUNK: usize = 1024;
 
 pub enum WakeEvent {
     Detected,
+    /// RMS amplitude of the latest recorded chunk, for the waveform overlay.
+    /// Emitted continuously between Detected and SpeechEnded so the hands-free
+    /// path animates the waveform like the push-to-talk path does.
+    Amplitude(f32),
     SpeechEnded { buffer: Vec<f32>, duration_s: f32 },
 }
 
@@ -224,6 +228,11 @@ impl WakeListener {
                             }
                             Phase::Recording { buffer, vad } => {
                                 buffer.extend_from_slice(&chunk);
+                                // Feed the waveform overlay. A dropped amplitude
+                                // event is harmless (just a skipped frame), so we
+                                // ignore send errors here and only bail on the
+                                // control events below.
+                                let _ = events.send(WakeEvent::Amplitude(rms_amplitude(&chunk)));
                                 if vad.push(&chunk) {
                                     let dur = buffer.len() as f32 / TARGET_SAMPLE_RATE as f32;
                                     let wall_ms =
