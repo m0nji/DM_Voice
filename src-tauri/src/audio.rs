@@ -170,22 +170,22 @@ impl AudioCapture {
     }
 
     pub fn stop_and_get_buffer(&mut self) -> Result<Vec<f32>> {
-        // Drop the stream first so no further callback can append samples
-        // while we're draining. Then take the buffer by std::mem::take so
-        // the next recording starts empty even if start_with_device's clear
-        // races with a still-firing callback (CoreAudio can post one more
-        // buffer after the stream drop on macOS).
-        // Explicitly stop the CoreAudio AudioUnit BEFORE dropping the stream.
-        // Dropping alone is not enough on macOS: the stream is built on the
-        // shortcut-handler thread but dropped here on a tokio worker (this runs
-        // inside trigger_transcription's spawned task), and across that thread
-        // boundary CoreAudio can leave the input AudioUnit running. That "ghost"
-        // stream keeps appending to the shared buffer in parallel with the next
-        // recording — observed as a consistent 2x buffer duration that trips the
-        // "Buffer drift detected" guard (so nothing is transcribed) and keeps the
-        // macOS mic indicator lit. pause() maps to AudioOutputUnitStop, which is
-        // thread-safe and synchronous, so stop the unit while we still hold the
-        // handle. After take() the handle is gone and the ghost is unreachable.
+        // Stop the CoreAudio AudioUnit (pause -> AudioOutputUnitStop, synchronous)
+        // before dropping the stream, so no further input callback can append
+        // samples while we drain. Then take() drops cpal's Stream, which on macOS
+        // uninitialises and disposes the AudioUnit and releases the input device —
+        // this is what clears the orange mic indicator.
+        //
+        // For user-selected (non-default) input devices, dispose-on-drop only works
+        // because of the vendored cpal patch in vendor/cpal: upstream cpal 0.15.3
+        // registers a device-disconnect listener for non-default devices whose
+        // closure stores a strong Stream clone inside the Stream's own Arc, forming
+        // a reference cycle that prevents the AudioUnit from ever being disposed and
+        // leaves the mic indicator lit. The patch holds a Weak ref instead.
+        //
+        // After take() the handle is gone; std::mem::take on the buffer guarantees
+        // the next recording starts empty even if a final CoreAudio callback races
+        // start_with_device's clear (macOS can post one more buffer after stop).
         let had_stream = self.stream.is_some();
         if let Some(ref stream) = self.stream {
             if let Err(e) = stream.pause() {

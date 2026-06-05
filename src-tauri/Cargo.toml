@@ -1,6 +1,6 @@
 [package]
 name = "dm-voice"
-version = "0.5.5"
+version = "0.5.6"
 edition = "2021"
 license = "GPL-3.0-or-later"
 authors = ["DM Apps"]
@@ -45,6 +45,16 @@ whisper-rs = { version = "0.16", features = ["metal"] }
 [target.'cfg(target_os = "windows")'.dependencies]
 whisper-rs = { version = "0.16", features = ["vulkan"] }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+
+# Vendored cpal 0.15.3 with a one-line fix to its macOS CoreAudio backend.
+# Upstream registers a device-disconnect listener for non-default input devices
+# whose closure captures a strong clone of the Stream and stores it inside the
+# Stream's own Arc → reference cycle → the AudioUnit is never disposed on drop →
+# the orange mic indicator stays lit after recording (only for user-selected,
+# non-default devices). The patch holds a Weak ref instead. See
+# vendor/cpal/src/host/coreaudio/macos/mod.rs (search "DM-Voice patch").
+[patch.crates-io]
+cpal = { path = "vendor/cpal" }
 
 [dev-dependencies]
 tempfile = "3"
