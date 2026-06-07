@@ -9,6 +9,9 @@
   "settings.sounds.label": "Sounds",
   "settings.sounds.toggle": "Play sounds",
 
+  "settings.casing.label": "Text",
+  "settings.casing.toggle": "Lowercase all dictated text",
+
   "settings.pill.label": "Overlay",
   "settings.pill.toggle": "Always show the pill (drag to reposition)",
 

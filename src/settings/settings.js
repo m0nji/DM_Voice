@@ -13,6 +13,7 @@ const PRESET_WPM = { beginner: 24, average: 40, fast: 60 };
   applyI18n();
   initShortcut();
   initSounds();
+  initLowercase();
   initPill();
   initHandsfree();
   initTimesaved();
@@ -88,6 +89,17 @@ function initSounds() {
   });
   soundsToggle.addEventListener('change', () => {
     invoke('set_sounds_enabled', { enabled: soundsToggle.checked });
+  });
+}
+
+// ─── Lowercase output ────────────────────────────────────────────────────────
+function initLowercase() {
+  const toggle = document.getElementById('lowercase-toggle');
+  invoke('get_config').then(cfg => {
+    toggle.checked = !!cfg.lowercase_output;
+  });
+  toggle.addEventListener('change', () => {
+    invoke('set_lowercase_output', { enabled: toggle.checked });
   });
 }
 
