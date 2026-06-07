@@ -16,12 +16,23 @@
   h1 {
     font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #fff;
   }
-  .columns {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 22px;
-    align-items: start;
+
+  /* Sidebar settings layout (ported from DM_Workspace) */
+  .settings-body { display: flex; gap: 20px; align-items: stretch; }
+  .settings-nav {
+    display: flex; flex-direction: column; gap: 2px;
+    min-width: 140px; flex-shrink: 0;
   }
+  .settings-nav-item {
+    text-align: left; padding: 8px 12px; border-radius: 7px;
+    background: none; border: none; cursor: pointer; color: #8e8e93;
+    font-size: 13px; font-family: inherit;
+  }
+  .settings-nav-item:hover { color: #fff; background: rgba(255,255,255,0.05); }
+  .settings-nav-item.active { color: #ff8a4c; background: rgba(255,138,76,0.12); }
+  .settings-content { flex: 1; min-width: 0; overflow-y: auto; max-height: 520px; }
+  .settings-content section { display: none; }
+
   .field { margin-bottom: 16px; }
   .field:last-child { margin-bottom: 0; }
   label {
@@ -34,7 +45,7 @@
     padding: 6px 10px; cursor: pointer; user-select: none;
     color: #fff; font-size: 13px;
   }
-  .shortcut-box.listening { border-color: #0a84ff; color: #0a84ff; }
+  .shortcut-box.listening { border-color: #ff8a4c; color: #ff8a4c; }
 
   /* Model rows */
   .model-row {
@@ -51,14 +62,14 @@
     transition: background 120ms;
   }
   button:hover { background: #3a3a3c; }
-  button.primary { background: #0a84ff; border-color: #0a84ff; color: #fff; }
-  button.primary:hover { background: #0073e6; }
+  button.primary { background: #ff8a4c; border-color: #ff8a4c; color: #fff; }
+  button.primary:hover { background: #f0741f; }
   button.danger { background: transparent; border-color: #ff453a; color: #ff453a; }
   button.danger:hover { background: rgba(255,69,58,0.12); }
 
   .progress { height: 4px; background: #3a3a3c; border-radius: 2px; margin-top: 4px; }
   .progress-bar {
-    height: 100%; background: #0a84ff; border-radius: 2px;
+    height: 100%; background: #ff8a4c; border-radius: 2px;
     width: 0%; transition: width 200ms;
   }
 
@@ -92,7 +103,7 @@
     width: 14px; height: 14px; background: #fff; border-radius: 50%;
     transition: left 150ms;
   }
-  .toggle-row input[type="checkbox"]:checked { background: #0a84ff; }
+  .toggle-row input[type="checkbox"]:checked { background: #ff8a4c; }
   .toggle-row input[type="checkbox"]:checked::after { left: 16px; }
 
   /* Hands-free options — label left, control right (matches .toggle-row) */
@@ -107,9 +118,9 @@
     border-radius: 5px; padding: 4px 8px; font-size: 12px; cursor: pointer;
     outline: none;
   }
-  .hf-control:focus { border-color: #0a84ff; }
+  .hf-control:focus { border-color: #ff8a4c; }
   .hf-silence { display: flex; align-items: center; gap: 8px; width: 132px; flex: none; }
-  .hf-silence input[type="range"] { flex: 1; min-width: 0; accent-color: #0a84ff; }
+  .hf-silence input[type="range"] { flex: 1; min-width: 0; accent-color: #ff8a4c; }
   .hf-silence-value {
     font-size: 11px; color: #aeaeb2; min-width: 30px; text-align: right;
     font-variant-numeric: tabular-nums;
@@ -159,7 +170,7 @@
     resize: vertical;
     outline: none;
   }
-  .vocab-textarea:focus { border-color: #0a84ff; }
+  .vocab-textarea:focus { border-color: #ff8a4c; }
   .vocab-hint {
     font-size: 10.5px; color: #8e8e93; margin-top: 6px; line-height: 1.4;
   }
@@ -188,144 +199,160 @@
 <body>
 <h1 data-i18n="settings.title">DM Voice</h1>
 
-<div class="columns">
-  <div class="col-left">
-    <div class="field">
-      <label data-i18n="settings.shortcut.label">Shortcut</label>
-      <div class="shortcut-box" id="shortcut-box" data-i18n="settings.shortcut.placeholder">Click to change</div>
-    </div>
+<div class="settings-body">
+  <nav class="settings-nav">
+    <button type="button" class="settings-nav-item active" data-nav="general" data-i18n="settings.nav.general">General</button>
+    <button type="button" class="settings-nav-item" data-nav="dictation" data-i18n="settings.nav.dictation">Dictation</button>
+    <button type="button" class="settings-nav-item" data-nav="models" data-i18n="settings.nav.models">Models</button>
+    <button type="button" class="settings-nav-item" data-nav="permissions" data-i18n="settings.nav.permissions">Permissions</button>
+    <button type="button" class="settings-nav-item" data-nav="updates" data-i18n="settings.nav.updates">Updates</button>
+  </nav>
 
-    <div class="field">
-      <label data-i18n="settings.sounds.label">Sounds</label>
-      <div class="toggle-row">
-        <span class="toggle-label" data-i18n="settings.sounds.toggle">Play sounds</span>
-        <input type="checkbox" id="sounds-toggle">
-      </div>
-    </div>
-
-    <div class="field">
-      <label data-i18n="settings.casing.label">Text</label>
-      <div class="toggle-row">
-        <span class="toggle-label" data-i18n="settings.casing.toggle">Lowercase all dictated text</span>
-        <input type="checkbox" id="lowercase-toggle">
-      </div>
-    </div>
-
-    <div class="field">
-      <label data-i18n="settings.pill.label">Overlay</label>
-      <div class="toggle-row">
-        <span class="toggle-label" data-i18n="settings.pill.toggle">Always show the pill (drag to reposition)</span>
-        <input type="checkbox" id="pill-toggle">
-      </div>
-    </div>
-
-    <div class="field">
-      <label data-i18n="settings.handsfree.label">Hands-free mode</label>
-      <div class="toggle-row">
-        <span class="toggle-label" data-i18n="settings.handsfree.toggle">Start dictation with a wake word</span>
-        <input type="checkbox" id="handsfree-toggle">
-      </div>
-      <div class="vocab-hint" data-i18n="settings.handsfree.hint"></div>
-      <div id="handsfree-options" style="margin-top:10px; display:none">
-        <div class="hf-row">
-          <span class="hf-label" data-i18n="settings.handsfree.wakeword">Wake word</span>
-          <select id="handsfree-wakeword" class="hf-control"></select>
+  <div class="settings-content">
+    <section data-section="general" style="display:block">
+      <div class="field">
+        <label data-i18n="settings.timesaved.label">Time Saved</label>
+        <div class="timesaved-card">
+          <div class="timesaved-main">
+            <div class="timesaved-minutes" id="timesaved-minutes">—</div>
+            <div class="timesaved-subtitle" id="timesaved-subtitle"></div>
+          </div>
+          <div class="timesaved-controls">
+            <span class="typing-speed-label" data-i18n="settings.timesaved.typingSpeed">Typing speed:</span>
+            <select id="typing-speed-select">
+              <option value="beginner" data-i18n="settings.timesaved.preset.beginner">Beginner (24 WPM)</option>
+              <option value="average" data-i18n="settings.timesaved.preset.average">Average (40 WPM)</option>
+              <option value="fast" data-i18n="settings.timesaved.preset.fast">Fast (60 WPM)</option>
+            </select>
+          </div>
+          <div class="timesaved-basis" id="timesaved-basis"></div>
         </div>
-        <div class="hf-row">
-          <span class="hf-label" data-i18n="settings.handsfree.sensitivity">Sensitivity</span>
-          <select id="handsfree-sensitivity" class="hf-control">
-            <option value="low" data-i18n="settings.handsfree.sensitivity.low">Low</option>
-            <option value="medium" data-i18n="settings.handsfree.sensitivity.medium">Medium</option>
-            <option value="high" data-i18n="settings.handsfree.sensitivity.high">High</option>
-          </select>
+      </div>
+
+      <div class="field">
+        <label data-i18n="settings.shortcut.label">Shortcut</label>
+        <div class="shortcut-box" id="shortcut-box" data-i18n="settings.shortcut.placeholder">Click to change</div>
+      </div>
+
+      <div class="field">
+        <label data-i18n="settings.sounds.label">Sounds</label>
+        <div class="toggle-row">
+          <span class="toggle-label" data-i18n="settings.sounds.toggle">Play sounds</span>
+          <input type="checkbox" id="sounds-toggle">
         </div>
-        <div class="hf-row">
-          <span class="hf-label" data-i18n="settings.handsfree.silence">Stop after silence</span>
-          <div class="hf-silence">
-            <input type="range" id="handsfree-silence" min="1000" max="8000" step="500">
-            <span id="handsfree-silence-value" class="hf-silence-value"></span>
+      </div>
+
+      <div class="field">
+        <label data-i18n="settings.pill.label">Overlay</label>
+        <div class="toggle-row">
+          <span class="toggle-label" data-i18n="settings.pill.toggle">Always show the pill (drag to reposition)</span>
+          <input type="checkbox" id="pill-toggle">
+        </div>
+      </div>
+    </section>
+
+    <section data-section="dictation">
+      <div class="field">
+        <label data-i18n="settings.handsfree.label">Hands-free mode</label>
+        <div class="toggle-row">
+          <span class="toggle-label" data-i18n="settings.handsfree.toggle">Start dictation with a wake word</span>
+          <input type="checkbox" id="handsfree-toggle">
+        </div>
+        <div class="vocab-hint" data-i18n="settings.handsfree.hint"></div>
+        <div id="handsfree-options" style="margin-top:10px; display:none">
+          <div class="hf-row">
+            <span class="hf-label" data-i18n="settings.handsfree.wakeword">Wake word</span>
+            <select id="handsfree-wakeword" class="hf-control"></select>
+          </div>
+          <div class="hf-row">
+            <span class="hf-label" data-i18n="settings.handsfree.sensitivity">Sensitivity</span>
+            <select id="handsfree-sensitivity" class="hf-control">
+              <option value="low" data-i18n="settings.handsfree.sensitivity.low">Low</option>
+              <option value="medium" data-i18n="settings.handsfree.sensitivity.medium">Medium</option>
+              <option value="high" data-i18n="settings.handsfree.sensitivity.high">High</option>
+            </select>
+          </div>
+          <div class="hf-row">
+            <span class="hf-label" data-i18n="settings.handsfree.silence">Stop after silence</span>
+            <div class="hf-silence">
+              <input type="range" id="handsfree-silence" min="1000" max="8000" step="500">
+              <span id="handsfree-silence-value" class="hf-silence-value"></span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="field">
-      <label data-i18n="settings.permissions.label">Permissions</label>
-      <div id="perm-list">
-        <div class="perm-row" id="perm-mic">
-          <div class="perm-name" data-i18n="settings.permissions.microphone">Microphone</div>
-          <span class="perm-status unknown">…</span>
-          <button data-i18n="settings.permissions.action.open">Open</button>
-        </div>
-        <div class="perm-row" id="perm-ax">
-          <div class="perm-name" data-i18n="settings.permissions.accessibility">Accessibility</div>
-          <span class="perm-status unknown">…</span>
-          <button data-i18n="settings.permissions.action.open">Open</button>
+      <div class="field">
+        <label data-i18n="settings.casing.label">Text</label>
+        <div class="toggle-row">
+          <span class="toggle-label" data-i18n="settings.casing.toggle">Lowercase all dictated text</span>
+          <input type="checkbox" id="lowercase-toggle">
         </div>
       </div>
-    </div>
 
-    <div class="field">
-      <label data-i18n="settings.models.label">Models</label>
-      <div id="model-list"></div>
-    </div>
-  </div>
-
-  <div class="col-right">
-    <div class="field">
-      <label data-i18n="settings.timesaved.label">Time Saved</label>
-      <div class="timesaved-card">
-        <div class="timesaved-main">
-          <div class="timesaved-minutes" id="timesaved-minutes">—</div>
-          <div class="timesaved-subtitle" id="timesaved-subtitle"></div>
+      <div class="field">
+        <label data-i18n="settings.vocabulary.label">Custom Vocabulary</label>
+        <textarea
+          id="vocab-textarea"
+          class="vocab-textarea"
+          spellcheck="false"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          data-i18n-attr="placeholder:settings.vocabulary.placeholder"
+          placeholder="One term per line…"></textarea>
+        <div class="vocab-hint" data-i18n="settings.vocabulary.hint">
+          One term per line. Names, technical terms and acronyms Whisper tends to mishear. Saves on focus loss.
         </div>
-        <div class="timesaved-controls">
-          <span class="typing-speed-label" data-i18n="settings.timesaved.typingSpeed">Typing speed:</span>
-          <select id="typing-speed-select">
-            <option value="beginner" data-i18n="settings.timesaved.preset.beginner">Beginner (24 WPM)</option>
-            <option value="average" data-i18n="settings.timesaved.preset.average">Average (40 WPM)</option>
-            <option value="fast" data-i18n="settings.timesaved.preset.fast">Fast (60 WPM)</option>
-          </select>
-        </div>
-        <div class="timesaved-basis" id="timesaved-basis"></div>
+        <div class="vocab-status" id="vocab-status" data-i18n="settings.vocabulary.saved">Saved</div>
       </div>
-    </div>
+    </section>
 
-    <div class="field">
-      <label data-i18n="settings.vocabulary.label">Custom Vocabulary</label>
-      <textarea
-        id="vocab-textarea"
-        class="vocab-textarea"
-        spellcheck="false"
-        autocomplete="off"
-        autocorrect="off"
-        autocapitalize="off"
-        data-i18n-attr="placeholder:settings.vocabulary.placeholder"
-        placeholder="One term per line…"></textarea>
-      <div class="vocab-hint" data-i18n="settings.vocabulary.hint">
-        One term per line. Names, technical terms and acronyms Whisper tends to mishear. Saves on focus loss.
+    <section data-section="models">
+      <div class="field">
+        <label data-i18n="settings.models.label">Models</label>
+        <div id="model-list"></div>
       </div>
-      <div class="vocab-status" id="vocab-status" data-i18n="settings.vocabulary.saved">Saved</div>
-    </div>
+    </section>
 
-    <div class="field">
-      <label data-i18n="settings.updates.label">Updates</label>
-      <div class="update-row">
-        <div class="update-line">
-          <div class="update-version" id="update-version">Version …</div>
-          <button id="update-check-btn" data-i18n="settings.updates.check">Check for updates</button>
-        </div>
-        <div class="update-meta" id="update-status" data-i18n="settings.updates.notChecked">Not checked yet.</div>
-        <div class="update-notes" id="update-notes" style="display:none"></div>
-        <div class="update-line" id="update-install-line" style="display:none">
-          <div class="update-meta" id="update-progress-text" style="flex:1" data-i18n="settings.updates.ready">Ready.</div>
-          <button class="primary" id="update-install-btn" data-i18n="settings.updates.installBtn">Install &amp; restart</button>
-        </div>
-        <div class="progress" id="update-progress" style="display:none">
-          <div class="progress-bar" id="update-progress-bar"></div>
+    <section data-section="permissions">
+      <div class="field">
+        <label data-i18n="settings.permissions.label">Permissions</label>
+        <div id="perm-list">
+          <div class="perm-row" id="perm-mic">
+            <div class="perm-name" data-i18n="settings.permissions.microphone">Microphone</div>
+            <span class="perm-status unknown">…</span>
+            <button data-i18n="settings.permissions.action.open">Open</button>
+          </div>
+          <div class="perm-row" id="perm-ax">
+            <div class="perm-name" data-i18n="settings.permissions.accessibility">Accessibility</div>
+            <span class="perm-status unknown">…</span>
+            <button data-i18n="settings.permissions.action.open">Open</button>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
+
+    <section data-section="updates">
+      <div class="field">
+        <label data-i18n="settings.updates.label">Updates</label>
+        <div class="update-row">
+          <div class="update-line">
+            <div class="update-version" id="update-version">Version …</div>
+            <button id="update-check-btn" data-i18n="settings.updates.check">Check for updates</button>
+          </div>
+          <div class="update-meta" id="update-status" data-i18n="settings.updates.notChecked">Not checked yet.</div>
+          <div class="update-notes" id="update-notes" style="display:none"></div>
+          <div class="update-line" id="update-install-line" style="display:none">
+            <div class="update-meta" id="update-progress-text" style="flex:1" data-i18n="settings.updates.ready">Ready.</div>
+            <button class="primary" id="update-install-btn" data-i18n="settings.updates.installBtn">Install &amp; restart</button>
+          </div>
+          <div class="progress" id="update-progress" style="display:none">
+            <div class="progress-bar" id="update-progress-bar"></div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
 
