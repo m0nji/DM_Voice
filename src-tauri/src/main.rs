@@ -107,6 +107,13 @@ fn set_sounds_enabled(enabled: bool, state: State<'_, SharedState>) {
 }
 
 #[tauri::command]
+fn set_lowercase_output(enabled: bool, state: State<'_, SharedState>) {
+    let mut cfg = state.config.lock().unwrap();
+    cfg.lowercase_output = enabled;
+    let _ = save_config(&cfg);
+}
+
+#[tauri::command]
 fn set_pill_always_visible(enabled: bool, state: State<'_, SharedState>, app: AppHandle) {
     {
         let mut cfg = state.config.lock().unwrap();
@@ -1254,6 +1261,7 @@ fn main() {
             get_config,
             set_shortcut,
             set_sounds_enabled,
+            set_lowercase_output,
             set_pill_always_visible,
             overlay_outer_position,
             overlay_set_position,
