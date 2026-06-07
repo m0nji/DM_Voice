@@ -17,7 +17,7 @@ mod vad;
 mod wake_word;
 
 use audio::{audio_stats, AudioCapture, TARGET_SAMPLE_RATE};
-use config::{build_vocabulary_prompt, load_config, save_config, AppConfig, TypingSpeedPreset};
+use config::{apply_output_casing, build_vocabulary_prompt, load_config, save_config, AppConfig, TypingSpeedPreset};
 use stats::{MonthStatsPayload, UsageStats};
 use models::ModelInfo;
 use std::sync::{Arc, Mutex};
@@ -690,9 +690,12 @@ fn trigger_transcription_with_buffer(
         }
         show_overlay(&app, "processing");
         let t_proc_start = Instant::now();
-        let vocab_prompt = {
+        let (vocab_prompt, lowercase_output) = {
             let cfg = state.config.lock().unwrap();
-            build_vocabulary_prompt(&cfg.custom_vocabulary)
+            (
+                build_vocabulary_prompt(&cfg.custom_vocabulary),
+                cfg.lowercase_output,
+            )
         };
         if let Some(ref p) = vocab_prompt {
             dlog!("Using custom-vocabulary prompt ({} chars)", p.len());
@@ -710,6 +713,7 @@ fn trigger_transcription_with_buffer(
             Some(r) => (r.text, r.no_speech_prob, r.avg_logprob, r.silence_hallucination),
             None => (String::new(), None, None, false),
         };
+        let text = apply_output_casing(&text, lowercase_output);
         dlog!(
             "Transcription result: {} ({} chars) no_speech={} avg_logprob={} silence_match={}",
             transcription_text_for_log(&text),
