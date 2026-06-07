@@ -99,6 +99,10 @@ pub struct AppConfig {
     /// default bottom-center position. Only honored while `pill_always_visible`.
     #[serde(default)]
     pub pill_position: Option<(i32, i32)>,
+    /// When true, all dictated text is lowercased before injection. Default
+    /// false keeps Whisper's original capitalization.
+    #[serde(default)]
+    pub lowercase_output: bool,
 }
 
 impl Default for AppConfig {
@@ -116,6 +120,7 @@ impl Default for AppConfig {
             silence_timeout_ms: default_silence_timeout_ms(),
             pill_always_visible: false,
             pill_position: None,
+            lowercase_output: false,
         }
     }
 }
@@ -148,6 +153,18 @@ pub fn build_vocabulary_prompt(words: &[String]) -> Option<String> {
         None
     } else {
         Some(buf)
+    }
+}
+
+/// Applies the chosen output casing to transcribed text. `lowercase == true`
+/// returns the text fully lowercased (Rust's `to_lowercase` handles German
+/// umlauts and ß correctly: Ä→ä, Ö→ö, Ü→ü, ß stays ß). Otherwise the text is
+/// returned unchanged.
+pub fn apply_output_casing(text: &str, lowercase: bool) -> String {
+    if lowercase {
+        text.to_lowercase()
+    } else {
+        text.to_string()
     }
 }
 
@@ -223,6 +240,7 @@ mod tests {
                 silence_timeout_ms: 3500,
                 pill_always_visible: true,
                 pill_position: Some((120, 880)),
+                lowercase_output: true,
             };
             let contents = toml::to_string(&cfg).unwrap();
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -287,6 +305,23 @@ mod tests {
         assert_eq!(cfg.silence_timeout_ms, 2000);
         assert!(!cfg.pill_always_visible);
         assert_eq!(cfg.pill_position, None);
+        assert!(!cfg.lowercase_output);
+    }
+
+    #[test]
+    fn apply_output_casing_off_is_unchanged() {
+        assert_eq!(apply_output_casing("Hallo Welt", false), "Hallo Welt");
+    }
+
+    #[test]
+    fn apply_output_casing_on_lowercases() {
+        assert_eq!(apply_output_casing("Hallo Welt", true), "hallo welt");
+    }
+
+    #[test]
+    fn apply_output_casing_handles_umlauts_and_eszett() {
+        assert_eq!(apply_output_casing("Ärger Über Öl", true), "ärger über öl");
+        assert_eq!(apply_output_casing("STRAßE", true), "straße");
     }
 
     #[test]
