@@ -2,6 +2,11 @@
   "app.name": "DM Voice",
 
   "settings.title": "DM Voice",
+  "settings.nav.general": "General",
+  "settings.nav.dictation": "Dictation",
+  "settings.nav.models": "Models",
+  "settings.nav.permissions": "Permissions",
+  "settings.nav.updates": "Updates",
   "settings.shortcut.label": "Shortcut",
   "settings.shortcut.placeholder": "Click to change",
   "settings.shortcut.listening": "Press a key…",
