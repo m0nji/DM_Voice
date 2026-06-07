@@ -11,6 +11,7 @@ const PRESET_WPM = { beginner: 24, average: 40, fast: 60 };
 (async function boot() {
   await initI18n('en');
   applyI18n();
+  initNav();
   initShortcut();
   initSounds();
   initLowercase();
@@ -22,6 +23,25 @@ const PRESET_WPM = { beginner: 24, average: 40, fast: 60 };
   initPermissions();
   initUpdates();
 })();
+
+// ─── Sidebar navigation ──────────────────────────────────────────────────────
+// Shows exactly one settings category at a time; defaults to "general" on every
+// open (no persistence). Independent of the init* functions, which bind by id.
+function initNav() {
+  const items = document.querySelectorAll('.settings-nav-item');
+  const sections = document.querySelectorAll('.settings-content section');
+  function show(nav) {
+    items.forEach(b => {
+      const active = b.dataset.nav === nav;
+      b.classList.toggle('active', active);
+      if (active) b.setAttribute('aria-current', 'page');
+      else b.removeAttribute('aria-current');
+    });
+    sections.forEach(s => { s.style.display = s.dataset.section === nav ? 'block' : 'none'; });
+  }
+  items.forEach(b => b.addEventListener('click', () => show(b.dataset.nav)));
+  show('general');
+}
 
 // ─── Shortcut ──────────────────────────────────────────────────────────────
 function initShortcut() {
