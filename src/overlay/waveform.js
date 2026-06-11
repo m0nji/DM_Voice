@@ -57,6 +57,20 @@ function setPinned(p) {
   if (state === 'idle') setState('idle');
 }
 
+// Report the pill's bounds (CSS px within the window) to Rust. The window is
+// wider than the pill and stays click-through; the Rust hover poll uses these
+// bounds to accept cursor events only while the cursor is over the pill, so
+// the transparent margins don't block the app underneath. offsetWidth/
+// offsetLeft ignore the entrance transform, so this yields the pill's resting
+// bounds even when measured mid-animation.
+function reportHitbox() {
+  const w = pill.offsetWidth;
+  const h = pill.offsetHeight;
+  const x = pill.offsetLeft - w / 2; // left:50% + translateX(-50%)
+  const y = pill.offsetTop;
+  invoke('overlay_set_hitbox', { x, y, w, h }).catch(() => {});
+}
+
 function setState(newState) {
   state = newState;
   stopPulse();
@@ -87,6 +101,9 @@ function setState(newState) {
     label.textContent = t('overlay.no_speech');
     setHeights([6, 6, 6, 6, 6]);
   }
+
+  // The label (and thus the auto-width pill) just changed size.
+  reportHitbox();
 }
 
 const { event } = window.__TAURI__;
@@ -132,10 +149,16 @@ pill.addEventListener('pointerdown', async (e) => {
   if (!pinned || e.button !== 0) return;
   e.preventDefault();
   try { pill.setPointerCapture(e.pointerId); } catch (_) {}
+  // Suspend the Rust hover poll for the whole drag — set before the await so
+  // the poll can't turn the window click-through while we fetch the anchor.
+  invoke('overlay_drag_state', { dragging: true }).catch(() => {});
   try {
     const [wx, wy] = await invoke('overlay_outer_position');
     drag = { mx: e.screenX, my: e.screenY, wx, wy, f: window.devicePixelRatio || 1 };
-  } catch (_) { drag = null; }
+  } catch (_) {
+    drag = null;
+    invoke('overlay_drag_state', { dragging: false }).catch(() => {});
+  }
 });
 
 pill.addEventListener('pointermove', (e) => {
@@ -151,6 +174,7 @@ function endDrag(e) {
   if (!drag) return;
   drag = null;
   try { pill.releasePointerCapture(e.pointerId); } catch (_) {}
+  invoke('overlay_drag_state', { dragging: false }).catch(() => {});
 }
 pill.addEventListener('pointerup', endDrag);
 pill.addEventListener('pointercancel', endDrag);
@@ -160,3 +184,7 @@ pill.addEventListener('pointercancel', endDrag);
 invoke('get_config')
   .then((cfg) => setPinned(!!cfg.pill_always_visible))
   .catch(() => {});
+
+// Seed the hitbox right away so the hover poll has bounds even before the
+// first state change (e.g. pinned "Ready" pill straight after startup).
+reportHitbox();

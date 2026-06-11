@@ -20,6 +20,7 @@ use audio::{audio_stats, AudioCapture, TARGET_SAMPLE_RATE};
 use config::{apply_output_casing, build_vocabulary_prompt, load_config, save_config, AppConfig, TypingSpeedPreset};
 use stats::{MonthStatsPayload, UsageStats};
 use models::ModelInfo;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -72,6 +73,16 @@ struct AppState {
     update: updater::SharedUpdateState,
     usage_stats: Arc<UsageStats>,
     wake_listener: Mutex<listener::WakeListener>,
+    // Pill bounds within the overlay window (CSS px), reported by the overlay
+    // JS. The hover poll uses this so the transparent margins of the fixed-
+    // width window don't block clicks meant for the app underneath.
+    pill_hitbox: Mutex<Option<(f64, f64, f64, f64)>>,
+    // True while the user drags the pinned pill; suspends the hover poll so a
+    // fast drag (cursor briefly outrunning the window) isn't cut off.
+    pill_dragging: AtomicBool,
+    // Last cursor-event state applied to the overlay window, so the hover
+    // poll only calls set_ignore_cursor_events on transitions.
+    overlay_interactive: AtomicBool,
 }
 
 type SharedState = Arc<AppState>;
@@ -139,6 +150,47 @@ fn overlay_outer_position(app: AppHandle) -> (i32, i32) {
 fn overlay_set_position(x: i32, y: i32, app: AppHandle) {
     if let Some(w) = app.get_webview_window("overlay") {
         let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+}
+
+/// Pill bounds within the overlay window (CSS px), reported by the overlay JS
+/// whenever the pill's size can change (state/label changes).
+#[tauri::command]
+fn overlay_set_hitbox(x: f64, y: f64, w: f64, h: f64, state: State<'_, SharedState>) {
+    *state.pill_hitbox.lock().unwrap() = Some((x, y, w, h));
+}
+
+/// Flagged by the overlay JS around a pill drag so the hover poll keeps the
+/// window interactive even if the cursor briefly outruns the moving pill.
+#[tauri::command]
+fn overlay_drag_state(dragging: bool, state: State<'_, SharedState>) {
+    state.pill_dragging.store(dragging, Ordering::SeqCst);
+}
+
+/// Whether the global cursor (physical px) falls inside the pill's bounds.
+/// `hitbox` is the pill rect within the window in CSS px as reported by the
+/// overlay JS; a small margin makes the rounded edge easier to grab.
+fn pill_hitbox_contains(
+    cursor: (f64, f64),
+    window_pos: (i32, i32),
+    scale: f64,
+    hitbox: (f64, f64, f64, f64),
+) -> bool {
+    const GRAB_MARGIN: f64 = 2.0; // CSS px
+    let (x, y, w, h) = hitbox;
+    let left = window_pos.0 as f64 + (x - GRAB_MARGIN) * scale;
+    let top = window_pos.1 as f64 + (y - GRAB_MARGIN) * scale;
+    let right = window_pos.0 as f64 + (x + w + GRAB_MARGIN) * scale;
+    let bottom = window_pos.1 as f64 + (y + h + GRAB_MARGIN) * scale;
+    cursor.0 >= left && cursor.0 < right && cursor.1 >= top && cursor.1 < bottom
+}
+
+/// Toggle whether the overlay window accepts cursor events, tracking the last
+/// applied value so the hover poll only hits the event loop on transitions.
+fn set_overlay_interactive(w: &tauri::WebviewWindow, state: &AppState, interactive: bool) {
+    if state.overlay_interactive.swap(interactive, Ordering::SeqCst) != interactive {
+        dlog!("overlay interactive -> {}", interactive);
+        let _ = w.set_ignore_cursor_events(!interactive);
     }
 }
 
@@ -371,9 +423,16 @@ fn configure_overlay_window(w: &tauri::WebviewWindow, pinned: bool) {
     // non-focusable so the recording overlay never steals focus from the app
     // you're dictating into.
     let _ = w.set_focusable(pinned);
-    // Pinned → accept the cursor so the pill can be dragged; otherwise let
-    // clicks pass straight through to whatever is underneath.
-    let _ = w.set_ignore_cursor_events(!pinned);
+    // The window starts click-through in both modes. The fixed 220px window is
+    // wider than the auto-width pill, so accepting cursor events for the whole
+    // window would block clicks/text selection in the transparent margins.
+    // When pinned, the hover poll (see setup) enables cursor events only while
+    // the cursor is actually over the pill, so it stays draggable.
+    if let Some(state) = w.app_handle().try_state::<SharedState>() {
+        set_overlay_interactive(w, &state, false);
+    } else {
+        let _ = w.set_ignore_cursor_events(true);
+    }
     let _ = w.set_shadow(false);
     set_webview_transparent(w);
 }
@@ -1244,6 +1303,11 @@ fn main() {
         update: Arc::clone(&update_state),
         usage_stats: Arc::clone(&usage_stats),
         wake_listener: Mutex::new(listener::WakeListener::new()),
+        pill_hitbox: Mutex::new(None),
+        pill_dragging: AtomicBool::new(false),
+        // Matches the OS default: a freshly created window accepts cursor
+        // events, so the first set_overlay_interactive(false) goes through.
+        overlay_interactive: AtomicBool::new(true),
     });
 
     tauri::Builder::default()
@@ -1265,6 +1329,8 @@ fn main() {
             set_pill_always_visible,
             overlay_outer_position,
             overlay_set_position,
+            overlay_set_hitbox,
+            overlay_drag_state,
             set_wake_word_enabled,
             set_wake_word_model,
             set_wake_word_sensitivity,
@@ -1321,6 +1387,38 @@ fn main() {
             // Configure cursor handling + show the dimmed "Ready" pill if the
             // user has the always-visible toggle on.
             apply_pill_pin_state(app.handle(), &state);
+
+            // Hover poll for the pinned pill: the window itself is always
+            // click-through (see configure_overlay_window) so its transparent
+            // margins never block the app underneath; this loop enables cursor
+            // events only while the cursor is over the visible pill, which is
+            // all that's needed for dragging it.
+            let poll_state = Arc::clone(&state);
+            let poll_app = app.handle().clone();
+            std::thread::spawn(move || loop {
+                std::thread::sleep(Duration::from_millis(80));
+                if !poll_state.config.lock().unwrap().pill_always_visible {
+                    continue; // not pinned → window takes no cursor events
+                }
+                if poll_state.pill_dragging.load(Ordering::SeqCst) {
+                    continue; // keep events flowing for the manual drag
+                }
+                let Some(w) = poll_app.get_webview_window("overlay") else {
+                    continue;
+                };
+                let inside = match (
+                    poll_app.cursor_position(),
+                    w.outer_position(),
+                    w.scale_factor(),
+                    *poll_state.pill_hitbox.lock().unwrap(),
+                ) {
+                    (Ok(c), Ok(p), Ok(s), Some(hb)) => {
+                        pill_hitbox_contains((c.x, c.y), (p.x, p.y), s, hb)
+                    }
+                    _ => false,
+                };
+                set_overlay_interactive(&w, &poll_state, inside);
+            });
 
             // Point whisper's Metal backend to the bundled ggml-metal.metal shader.
             // ggml-metal.m checks GGML_METAL_PATH_RESOURCES before falling back to
@@ -1573,5 +1671,30 @@ mod tests {
     fn transcription_text_is_redacted_for_logs() {
         assert_eq!(transcription_text_for_log("vertraulicher Text"), "<redacted>");
         assert_eq!(transcription_text_for_log(""), "<empty>");
+    }
+
+    #[test]
+    fn cursor_inside_pill_hitbox_is_detected() {
+        // Window at physical (1000, 500), scale 2.0; pill at CSS (55, 6), 110x40.
+        // Pill spans physical x 1110..1330, y 512..592 (plus the grab margin).
+        let hitbox = (55.0, 6.0, 110.0, 40.0);
+        assert!(pill_hitbox_contains((1200.0, 550.0), (1000, 500), 2.0, hitbox));
+        // Just left of the pill, inside the window: must NOT hit (that's the
+        // invisible-blocker bug).
+        assert!(!pill_hitbox_contains((1050.0, 550.0), (1000, 500), 2.0, hitbox));
+        // Right of the pill, still inside the 220px window.
+        assert!(!pill_hitbox_contains((1400.0, 550.0), (1000, 500), 2.0, hitbox));
+        // Above / below the pill.
+        assert!(!pill_hitbox_contains((1200.0, 505.0), (1000, 500), 2.0, hitbox));
+        assert!(!pill_hitbox_contains((1200.0, 600.0), (1000, 500), 2.0, hitbox));
+    }
+
+    #[test]
+    fn pill_hitbox_has_small_grab_margin() {
+        // 2 CSS px of tolerance around the pill so the rounded edge is easy to
+        // grab: at scale 2.0 the left edge (1110 phys) extends to 1106.
+        let hitbox = (55.0, 6.0, 110.0, 40.0);
+        assert!(pill_hitbox_contains((1107.0, 550.0), (1000, 500), 2.0, hitbox));
+        assert!(!pill_hitbox_contains((1105.0, 550.0), (1000, 500), 2.0, hitbox));
     }
 }
