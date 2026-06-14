@@ -5,6 +5,7 @@
 //! this before any push-to-talk dictation begins).
 
 use crate::audio::{downmix_to_mono, rms_amplitude, TARGET_SAMPLE_RATE};
+use crate::limits::MAX_RECORDING_SECS;
 use crate::vad::SilenceTracker;
 use crate::wake_word::{WakeWordDetector, FRAME_LENGTH};
 use anyhow::Result;
@@ -18,7 +19,6 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-const MAX_RECORDING_SECS: u32 = 60;
 const RESAMPLE_CHUNK: usize = 1024;
 
 pub enum WakeEvent {
@@ -273,5 +273,15 @@ impl WakeListener {
             let _ = s.pause();
         }
         self.stream.take();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn max_recording_cap_is_90_seconds() {
+        assert_eq!(MAX_RECORDING_SECS, 90);
     }
 }

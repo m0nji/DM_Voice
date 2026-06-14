@@ -5,6 +5,7 @@ mod dlog;
 mod audio;
 mod config;
 mod injector;
+mod limits;
 mod listener;
 mod models;
 mod permissions;
@@ -18,6 +19,7 @@ mod wake_word;
 
 use audio::{audio_stats, AudioCapture, TARGET_SAMPLE_RATE};
 use config::{apply_output_casing, build_vocabulary_prompt, load_config, save_config, AppConfig, TypingSpeedPreset};
+use limits::MAX_RECORDING_SECS;
 use stats::{MonthStatsPayload, UsageStats};
 use models::ModelInfo;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -918,7 +920,7 @@ fn on_shortcut_pressed(app: &AppHandle, state: &SharedState) {
             };
             match elapsed {
                 None => break,
-                Some(d) if d > Duration::from_secs(60) => {
+                Some(d) if d > Duration::from_secs(MAX_RECORDING_SECS.into()) => {
                     *state2.recording_start.lock().unwrap() = None;
                     *state2.auto_stop.lock().unwrap() = true;
                     trigger_transcription(app2.clone(), Arc::clone(&state2), d);

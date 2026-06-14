@@ -20,7 +20,7 @@ Simple Push-to-Talk - Speech-to-Text app for macOS and Windows. Hold the hotkey 
 - **Text injection** into any active app — Cmd+V on macOS (CGEvent + AX API), Ctrl+V on Windows
 - **Launch at login** as a tray-menu toggle
 - **Auto-updates** via the built-in Tauri updater (tray → "Check for updates…")
-- **Recording limit**: 60 seconds per push-to-talk
+- **Recording limit**: 90 seconds per recording
 
 ## Installation
 
