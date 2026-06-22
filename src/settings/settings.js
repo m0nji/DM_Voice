@@ -290,7 +290,7 @@ function initSymbols() {
     rowsEl.replaceChildren(...list.map(it => makeRow(it.spoken, it.symbol)));
     toggle.checked = !!cfg.symbol_replacements_enabled;
     options.style.display = toggle.checked ? 'block' : 'none';
-  });
+  }).catch(e => console.error('initSymbols get_config failed', e));
 
   toggle.addEventListener('change', () => {
     options.style.display = toggle.checked ? 'block' : 'none';
