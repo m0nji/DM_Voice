@@ -196,6 +196,7 @@ pub fn default_symbol_replacements() -> Vec<SymbolReplacement> {
         ("caret", "^"),
         ("backtick", "`"),
         ("at", "@"),
+        ("et", "@"),
         ("hash", "#"),
     ]
     .iter()
@@ -408,6 +409,8 @@ mod tests {
             .expect("default list must contain 'pipe'");
         assert_eq!(pipe.symbol, "|");
         assert!(cfg.symbol_replacements.iter().any(|r| r.spoken == "backslash" && r.symbol == "\\"));
+        // "et" is the German-pronunciation alias for "@" (Whisper often hears "at" as "et").
+        assert!(cfg.symbol_replacements.iter().any(|r| r.spoken == "et" && r.symbol == "@"));
     }
 
     #[test]
