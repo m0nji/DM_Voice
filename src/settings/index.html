@@ -180,6 +180,20 @@
   }
   .vocab-status.visible { opacity: 1; }
 
+  /* Symbol replacements */
+  .symbols-head, .symbols-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .symbols-col { font-size: 12px; color: #888; }
+  .symbols-head .symbols-col:first-child { flex: 1; }
+  .symbols-head .symbols-col:last-child { width: 72px; }
+  .symbols-spoken { flex: 1; }
+  .symbols-symbol { width: 64px; }
+  .symbols-row input { background: #1e1e1e; color: #eee; border: 1px solid #333; border-radius: 6px; padding: 6px 8px; font-size: 13px; }
+  .symbols-row input:focus { border-color: #ff8a4c; outline: none; }
+  .symbols-del { width: 28px; background: transparent; color: #888; border: none; cursor: pointer; font-size: 14px; }
+  .symbols-del:hover { color: #ff6b6b; }
+  .symbols-add { margin: 4px 0 8px; background: transparent; color: #ff8a4c; border: 1px solid #333; border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 13px; }
+  .symbols-add:hover { border-color: #ff8a4c; }
+
   /* Updates */
   .update-row {
     background: #2c2c2e; border-radius: 6px; padding: 10px 12px;
@@ -305,6 +319,23 @@
           One term per line. Names, technical terms and acronyms Whisper tends to mishear. Saves on focus loss.
         </div>
         <div class="vocab-status" id="vocab-status" data-i18n="settings.vocabulary.saved">Saved</div>
+      </div>
+
+      <div class="field">
+        <label data-i18n="settings.symbols.label">Symbol replacements</label>
+        <div class="toggle-row">
+          <span class="toggle-label" data-i18n="settings.symbols.toggle">Insert symbols by voice</span>
+          <input type="checkbox" id="symbols-toggle">
+        </div>
+        <div id="symbols-options" style="margin-top:10px">
+          <div class="symbols-head">
+            <span class="symbols-col" data-i18n="settings.symbols.spoken">Spoken</span>
+            <span class="symbols-col" data-i18n="settings.symbols.symbol">Symbol</span>
+          </div>
+          <div id="symbols-rows"></div>
+          <button type="button" id="symbols-add" class="symbols-add" data-i18n="settings.symbols.add">Add row</button>
+          <div class="vocab-hint" data-i18n="settings.symbols.hint">Say only the word to insert its symbol.</div>
+        </div>
       </div>
     </section>
 

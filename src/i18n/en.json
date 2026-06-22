@@ -59,6 +59,13 @@
   "settings.vocabulary.hint": "One term per line. Names, technical terms and acronyms Whisper tends to mishear. Saves on focus loss.",
   "settings.vocabulary.saved": "Saved",
 
+  "settings.symbols.label": "Symbol replacements",
+  "settings.symbols.toggle": "Insert symbols by voice",
+  "settings.symbols.spoken": "Spoken",
+  "settings.symbols.symbol": "Symbol",
+  "settings.symbols.add": "Add row",
+  "settings.symbols.hint": "Say only the word to insert its symbol. E.g. say \"pipe\" to type |.",
+
   "settings.models.label": "Models",
   "settings.models.delete": "Delete",
   "settings.models.download": "Download",

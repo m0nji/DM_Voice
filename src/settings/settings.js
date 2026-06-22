@@ -19,6 +19,7 @@ const PRESET_WPM = { beginner: 24, average: 40, fast: 60 };
   initHandsfree();
   initTimesaved();
   initVocabulary();
+  initSymbols();
   initModels();
   initPermissions();
   initUpdates();
@@ -228,6 +229,79 @@ function initVocabulary() {
       e.preventDefault();
       save();
     }
+  });
+}
+
+// ─── Symbol replacements ───────────────────────────────────────────────────
+function initSymbols() {
+  const toggle  = document.getElementById('symbols-toggle');
+  const options = document.getElementById('symbols-options');
+  const rowsEl  = document.getElementById('symbols-rows');
+  const addBtn  = document.getElementById('symbols-add');
+
+  function makeRow(spoken, symbol) {
+    const row = document.createElement('div');
+    row.className = 'symbols-row';
+
+    const spokenIn = document.createElement('input');
+    spokenIn.type = 'text';
+    spokenIn.className = 'symbols-spoken';
+    spokenIn.spellcheck = false;
+    spokenIn.value = spoken || '';
+
+    const symbolIn = document.createElement('input');
+    symbolIn.type = 'text';
+    symbolIn.className = 'symbols-symbol';
+    symbolIn.spellcheck = false;
+    symbolIn.value = symbol || '';
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'symbols-del';
+    del.textContent = '✕';
+    del.addEventListener('click', () => { row.remove(); save(); });
+
+    spokenIn.addEventListener('blur', save);
+    symbolIn.addEventListener('blur', save);
+
+    row.append(spokenIn, symbolIn, del);
+    return row;
+  }
+
+  function currentItems() {
+    return Array.from(rowsEl.querySelectorAll('.symbols-row'))
+      .map(row => ({
+        spoken: row.querySelector('.symbols-spoken').value.trim(),
+        symbol: row.querySelector('.symbols-symbol').value,
+      }))
+      .filter(it => it.spoken.length > 0 && it.symbol.length > 0);
+  }
+
+  async function save() {
+    try {
+      await invoke('set_symbol_replacements', { items: currentItems() });
+    } catch (e) {
+      console.error('set_symbol_replacements failed', e);
+    }
+  }
+
+  invoke('get_config').then(cfg => {
+    const list = Array.isArray(cfg.symbol_replacements) ? cfg.symbol_replacements : [];
+    rowsEl.replaceChildren(...list.map(it => makeRow(it.spoken, it.symbol)));
+    toggle.checked = !!cfg.symbol_replacements_enabled;
+    options.style.display = toggle.checked ? 'block' : 'none';
+  });
+
+  toggle.addEventListener('change', () => {
+    options.style.display = toggle.checked ? 'block' : 'none';
+    invoke('set_symbol_replacements_enabled', { enabled: toggle.checked })
+      .catch(e => console.error('set_symbol_replacements_enabled failed', e));
+  });
+
+  addBtn.addEventListener('click', () => {
+    const row = makeRow('', '');
+    rowsEl.appendChild(row);
+    row.querySelector('.symbols-spoken').focus();
   });
 }
 
