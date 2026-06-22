@@ -64,6 +64,13 @@ impl WakeWordSensitivity {
     }
 }
 
+/// One spoken-word → symbol mapping. Matched as a whole utterance only.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SymbolReplacement {
+    pub spoken: String,
+    pub symbol: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppConfig {
     pub shortcut: String,
@@ -103,6 +110,12 @@ pub struct AppConfig {
     /// false keeps Whisper's original capitalization.
     #[serde(default)]
     pub lowercase_output: bool,
+    /// Master switch for spoken-symbol replacement. Default on.
+    #[serde(default = "default_symbol_replacements_enabled")]
+    pub symbol_replacements_enabled: bool,
+    /// Spoken-word → symbol table. Replaces the whole utterance on exact match.
+    #[serde(default = "default_symbol_replacements")]
+    pub symbol_replacements: Vec<SymbolReplacement>,
 }
 
 impl Default for AppConfig {
@@ -121,6 +134,8 @@ impl Default for AppConfig {
             pill_always_visible: false,
             pill_position: None,
             lowercase_output: false,
+            symbol_replacements_enabled: default_symbol_replacements_enabled(),
+            symbol_replacements: default_symbol_replacements(),
         }
     }
 }
@@ -166,6 +181,50 @@ pub fn apply_output_casing(text: &str, lowercase: bool) -> String {
     } else {
         text.to_string()
     }
+}
+
+pub fn default_symbol_replacements_enabled() -> bool {
+    true
+}
+
+pub fn default_symbol_replacements() -> Vec<SymbolReplacement> {
+    [
+        ("pipe", "|"),
+        ("backslash", "\\"),
+        ("ampersand", "&"),
+        ("tilde", "~"),
+        ("caret", "^"),
+        ("backtick", "`"),
+        ("at", "@"),
+        ("hash", "#"),
+    ]
+    .iter()
+    .map(|(spoken, symbol)| SymbolReplacement {
+        spoken: spoken.to_string(),
+        symbol: symbol.to_string(),
+    })
+    .collect()
+}
+
+/// Builds the word list fed to `build_vocabulary_prompt`: the user's custom
+/// vocabulary first, then the active spoken-symbol terms (when enabled) so
+/// Whisper recognizes short symbol names more reliably. The 600-char cap in
+/// `build_vocabulary_prompt` still applies, keeping user terms prioritized.
+pub fn combined_vocabulary(
+    custom: &[String],
+    replacements: &[SymbolReplacement],
+    symbols_enabled: bool,
+) -> Vec<String> {
+    let mut words: Vec<String> = custom.to_vec();
+    if symbols_enabled {
+        for r in replacements {
+            let term = r.spoken.trim();
+            if !term.is_empty() {
+                words.push(term.to_string());
+            }
+        }
+    }
+    words
 }
 
 fn default_sounds_enabled() -> bool {
@@ -241,6 +300,11 @@ mod tests {
                 pill_always_visible: true,
                 pill_position: Some((120, 880)),
                 lowercase_output: true,
+                symbol_replacements_enabled: false,
+                symbol_replacements: vec![SymbolReplacement {
+                    spoken: "pipe".into(),
+                    symbol: "|".into(),
+                }],
             };
             let contents = toml::to_string(&cfg).unwrap();
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -331,5 +395,47 @@ mod tests {
         let prompt = build_vocabulary_prompt(&words).unwrap();
         assert!(prompt.len() <= 600, "prompt was {} chars", prompt.len());
         assert!(prompt.starts_with("word0000"));
+    }
+
+    #[test]
+    fn symbol_defaults_are_on_with_prefilled_list() {
+        let cfg = AppConfig::default();
+        assert!(cfg.symbol_replacements_enabled);
+        let pipe = cfg
+            .symbol_replacements
+            .iter()
+            .find(|r| r.spoken == "pipe")
+            .expect("default list must contain 'pipe'");
+        assert_eq!(pipe.symbol, "|");
+        assert!(cfg.symbol_replacements.iter().any(|r| r.spoken == "backslash" && r.symbol == "\\"));
+    }
+
+    #[test]
+    fn missing_symbol_fields_deserialize_to_defaults() {
+        // An old config.toml without the new keys must still load with defaults.
+        let old = "shortcut = \"Alt+Space\"\nmodel_name = \"large-v3-turbo\"\n";
+        let cfg: AppConfig = toml::from_str(old).unwrap();
+        assert!(cfg.symbol_replacements_enabled);
+        assert!(!cfg.symbol_replacements.is_empty());
+    }
+
+    #[test]
+    fn combined_vocabulary_appends_spoken_terms_when_enabled() {
+        let custom = vec!["Tauri".to_string()];
+        let repl = vec![
+            SymbolReplacement { spoken: "pipe".into(), symbol: "|".into() },
+            SymbolReplacement { spoken: "  ".into(), symbol: "x".into() }, // skipped (blank spoken)
+        ];
+        assert_eq!(
+            combined_vocabulary(&custom, &repl, true),
+            vec!["Tauri".to_string(), "pipe".to_string()]
+        );
+    }
+
+    #[test]
+    fn combined_vocabulary_omits_symbols_when_disabled() {
+        let custom = vec!["Tauri".to_string()];
+        let repl = vec![SymbolReplacement { spoken: "pipe".into(), symbol: "|".into() }];
+        assert_eq!(combined_vocabulary(&custom, &repl, false), vec!["Tauri".to_string()]);
     }
 }
