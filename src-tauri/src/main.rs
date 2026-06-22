@@ -19,7 +19,7 @@ mod vad;
 mod wake_word;
 
 use audio::{audio_stats, AudioCapture, TARGET_SAMPLE_RATE};
-use config::{apply_output_casing, build_vocabulary_prompt, load_config, save_config, AppConfig, TypingSpeedPreset};
+use config::{apply_output_casing, build_vocabulary_prompt, combined_vocabulary, load_config, save_config, AppConfig, SymbolReplacement, TypingSpeedPreset};
 use limits::MAX_RECORDING_SECS;
 use stats::{MonthStatsPayload, UsageStats};
 use models::ModelInfo;
@@ -125,6 +125,33 @@ fn set_lowercase_output(enabled: bool, state: State<'_, SharedState>) {
     let mut cfg = state.config.lock().unwrap();
     cfg.lowercase_output = enabled;
     let _ = save_config(&cfg);
+}
+
+#[tauri::command]
+fn set_symbol_replacements_enabled(enabled: bool, state: State<'_, SharedState>) {
+    let mut cfg = state.config.lock().unwrap();
+    cfg.symbol_replacements_enabled = enabled;
+    let _ = save_config(&cfg);
+}
+
+#[tauri::command]
+fn set_symbol_replacements(
+    items: Vec<SymbolReplacement>,
+    state: State<'_, SharedState>,
+) -> Result<(), String> {
+    // Drop entries with a blank spoken term or empty symbol; trim spoken.
+    let cleaned: Vec<SymbolReplacement> = items
+        .into_iter()
+        .map(|r| SymbolReplacement {
+            spoken: r.spoken.trim().to_string(),
+            symbol: r.symbol,
+        })
+        .filter(|r| !r.spoken.is_empty() && !r.symbol.is_empty())
+        .collect();
+    let mut cfg = state.config.lock().unwrap();
+    cfg.symbol_replacements = cleaned;
+    save_config(&cfg).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -759,11 +786,18 @@ fn trigger_transcription_with_buffer(
         }
         show_overlay(&app, "processing");
         let t_proc_start = Instant::now();
-        let (vocab_prompt, lowercase_output) = {
+        let (vocab_prompt, lowercase_output, symbols_enabled, symbol_replacements) = {
             let cfg = state.config.lock().unwrap();
+            let vocab_words = combined_vocabulary(
+                &cfg.custom_vocabulary,
+                &cfg.symbol_replacements,
+                cfg.symbol_replacements_enabled,
+            );
             (
-                build_vocabulary_prompt(&cfg.custom_vocabulary),
+                build_vocabulary_prompt(&vocab_words),
                 cfg.lowercase_output,
+                cfg.symbol_replacements_enabled,
+                cfg.symbol_replacements.clone(),
             )
         };
         if let Some(ref p) = vocab_prompt {
@@ -783,6 +817,12 @@ fn trigger_transcription_with_buffer(
             None => (String::new(), None, None, false),
         };
         let text = apply_output_casing(&text, lowercase_output);
+        // Whole-utterance spoken-symbol replacement (e.g. "pipe" -> "|").
+        // Runs after casing; on a match the symbol replaces the whole text.
+        let text = match symbols::resolve(&text, &symbol_replacements, symbols_enabled) {
+            Some(symbol) => symbol,
+            None => text,
+        };
         dlog!(
             "Transcription result: {} ({} chars) no_speech={} avg_logprob={} silence_match={}",
             transcription_text_for_log(&text),
@@ -1329,6 +1369,8 @@ fn main() {
             set_shortcut,
             set_sounds_enabled,
             set_lowercase_output,
+            set_symbol_replacements_enabled,
+            set_symbol_replacements,
             set_pill_always_visible,
             overlay_outer_position,
             overlay_set_position,
