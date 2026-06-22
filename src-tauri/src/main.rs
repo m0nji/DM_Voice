@@ -12,6 +12,7 @@ mod permissions;
 mod shortcut;
 mod sounds;
 mod stats;
+mod symbols;
 mod transcriber;
 mod updater;
 mod vad;
