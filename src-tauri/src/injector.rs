@@ -229,7 +229,11 @@ pub fn inject_text(text: &str, target_pid: Option<i32>) -> Result<()> {
     let mut clipboard = Clipboard::new()?;
     let previous_clipboard = capture_clipboard_snapshot(&mut clipboard);
     clipboard.set_text(text)?;
-    thread::sleep(Duration::from_millis(80));
+    // Short settle for pasteboard consumers (clipboard managers etc.). The
+    // pasteboard write itself is synchronous, and the target app only reads
+    // it when it handles Cmd+V — after the activation wait in
+    // paste_via_cgevent — so a long delay here buys nothing.
+    thread::sleep(Duration::from_millis(30));
     let paste_result = paste_via_cgevent(target_pid);
     if let Err(err) = restore_clipboard_snapshot(&mut clipboard, previous_clipboard) {
         dlog!("clipboard restore failed after paste attempt: {:?}", err);
@@ -268,6 +272,26 @@ fn frontmost_matches_target_pid(target_pid: Option<i32>, actual_pid: Option<i32>
     matches!((target_pid, actual_pid), (Some(target), Some(actual)) if target == actual)
 }
 
+/// Poll until `read_frontmost()` reports `pid` or the timeout elapses.
+/// Returns the last observed frontmost PID. Replaces the previous fixed
+/// post-activation sleeps: when the target app is already frontmost (the
+/// common case — the overlay never takes focus) this returns immediately
+/// instead of always paying the full settling delay.
+fn wait_for_frontmost(
+    pid: i32,
+    timeout: Duration,
+    read_frontmost: impl Fn() -> Option<i32>,
+) -> Option<i32> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        let actual = read_frontmost();
+        if actual == Some(pid) || std::time::Instant::now() >= deadline {
+            return actual;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn paste_via_cgevent(target_pid: Option<i32>) -> Result<()> {
     use std::ffi::c_void;
@@ -299,25 +323,22 @@ fn paste_via_cgevent(target_pid: Option<i32>) -> Result<()> {
     unsafe {
         if let Some(pid) = target_pid {
             let ax_ok = activate_pid(pid);
-            thread::sleep(Duration::from_millis(120));
-            let post_front = frontmost_app_info();
+            let read_front = || frontmost_app_info().map(|(p, _)| p);
+            let mut actual_pid = wait_for_frontmost(pid, Duration::from_millis(250), read_front);
             dlog!(
                 "paste_via_cgevent: post-activate frontmost={:?} (target was {}, ax_ok={})",
-                post_front,
+                actual_pid,
                 pid,
                 ax_ok
             );
             // If AX didn't actually make the target frontmost, retry once with a
-            // longer settling delay — some apps need a tick to bring up their key
-            // window in response to AXFrontmost.
-            let mut actual_pid = post_front.as_ref().map(|(p, _)| *p);
+            // longer settling window — some apps need a tick to bring up their
+            // key window in response to AXFrontmost.
             if !frontmost_matches_target_pid(Some(pid), actual_pid) {
-                dlog!("  retrying activation after 80ms");
+                dlog!("  retrying activation");
                 let _ = activate_pid(pid);
-                thread::sleep(Duration::from_millis(80));
-                let retry_front = frontmost_app_info();
-                dlog!("  retry frontmost={:?}", retry_front);
-                actual_pid = retry_front.as_ref().map(|(p, _)| *p);
+                actual_pid = wait_for_frontmost(pid, Duration::from_millis(300), read_front);
+                dlog!("  retry frontmost={:?}", actual_pid);
             }
             if !frontmost_matches_target_pid(Some(pid), actual_pid) {
                 anyhow::bail!("target application was not frontmost after activation");
@@ -432,8 +453,11 @@ fn paste_via_cgevent(_target_pid: Option<i32>) -> Result<()> {
     let target_pid =
         _target_pid.ok_or_else(|| anyhow::anyhow!("no target application captured for paste"))?;
     let _ = activate_pid(target_pid);
-    thread::sleep(Duration::from_millis(120));
-    let actual_pid = foreground_window_pid();
+    let actual_pid = wait_for_frontmost(
+        target_pid,
+        Duration::from_millis(250),
+        foreground_window_pid,
+    );
     dlog!(
         "paste_via_cgevent: windows frontmost={:?} target={}",
         actual_pid,
