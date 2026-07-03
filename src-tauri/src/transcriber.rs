@@ -49,7 +49,11 @@ impl WhisperTranscriber {
         params.set_detect_language(false);
         params.set_translate(false);
         params.set_no_context(true);
-        params.set_single_segment(true);
+        // Must stay false: recordings may run up to MAX_RECORDING_SECS (90 s),
+        // but whisper.cpp decodes only the first 30 s window when
+        // single_segment is set — everything after that would be dropped.
+        // The segment loop below aggregates the multi-segment output.
+        params.set_single_segment(false);
         params.set_no_timestamps(true);
         params.set_temperature(0.0);
         params.set_temperature_inc(0.0);
