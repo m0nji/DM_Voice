@@ -1092,10 +1092,15 @@ fn register_shortcut(app: &AppHandle, shortcut: &str, state: SharedState) {
 /// Build the tray dropdown: app name + version (disabled), separator, one
 /// CheckMenuItem per model (only installed ones are clickable, the active one
 /// is checked), separator, quit.
+///
+/// `devices` is the input-device list to render. Enumeration lives with the
+/// callers because CoreAudio device enumeration takes 100-300 ms and must not
+/// run on the thread that handles menu events (see rebuild_tray_menu).
 fn build_tray_menu(
     app: &AppHandle,
     cfg: &AppConfig,
     update: &updater::UpdateState,
+    devices: &[String],
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 
@@ -1162,9 +1167,8 @@ fn build_tray_menu(
         cfg.input_device.is_none(),
         None::<&str>,
     )?;
-    let devices = audio::list_input_devices();
     let mut mic_device_items: Vec<CheckMenuItem<tauri::Wry>> = Vec::new();
-    for name in &devices {
+    for name in devices {
         let id = format!("mic:{}", name);
         let checked = cfg.input_device.as_deref() == Some(name.as_str());
         let item = CheckMenuItem::with_id(
@@ -1318,14 +1322,25 @@ fn autostart_toggle(app: &AppHandle) {
     }
 }
 
+/// Rebuild the tray menu on a worker thread. CoreAudio device enumeration
+/// takes 100-300 ms; running it inline made every menu interaction (mic /
+/// model / autostart toggle) feel sluggish because menu events are handled on
+/// the main thread. Building + set_menu off the main thread is already
+/// established behavior — the updater paths have always called this from
+/// async-runtime threads.
 fn rebuild_tray_menu(app: &AppHandle, state: &SharedState) {
-    let cfg = state.config.lock().unwrap().clone();
-    let update = state.update.lock().unwrap().clone();
-    if let Ok(menu) = build_tray_menu(app, &cfg, &update) {
-        if let Some(tray) = app.tray_by_id("main") {
-            let _ = tray.set_menu(Some(menu));
+    let app = app.clone();
+    let state = Arc::clone(state);
+    std::thread::spawn(move || {
+        let devices = audio::list_input_devices();
+        let cfg = state.config.lock().unwrap().clone();
+        let update = state.update.lock().unwrap().clone();
+        if let Ok(menu) = build_tray_menu(&app, &cfg, &update, &devices) {
+            if let Some(tray) = app.tray_by_id("main") {
+                let _ = tray.set_menu(Some(menu));
+            }
         }
-    }
+    });
 }
 
 fn main() {
@@ -1352,6 +1367,11 @@ fn main() {
         // events, so the first set_overlay_interactive(false) goes through.
         overlay_interactive: AtomicBool::new(true),
     });
+
+    // Enumerate input devices in parallel with plugin/window setup — CoreAudio
+    // enumeration takes 100-300 ms and the result is first needed when the
+    // initial tray menu is built inside setup().
+    let device_scan = std::thread::spawn(audio::list_input_devices);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -1476,26 +1496,41 @@ fn main() {
                 );
             }
 
-            // Load transcriber if model is installed
+            // Load transcriber if model is installed. Runs on a worker thread:
+            // Whisper init takes several hundred ms to seconds for the large
+            // models and would otherwise delay tray/window creation. A dictation
+            // started before the load finishes is handled gracefully (transcriber
+            // is None -> empty result + dlog).
             let model_name = state.config.lock().unwrap().model_name.clone();
-            let model_info = models::list_models()
-                .into_iter()
-                .find(|m| m.name == model_name && m.installed);
-            if let Some(info) = model_info {
-                let path = models::model_path(&info.filename);
-                if let Ok(t) = transcriber::WhisperTranscriber::new(&path) {
-                    *state.transcriber.lock().unwrap() = Some(t);
+            let state_for_load = Arc::clone(&state);
+            std::thread::spawn(move || {
+                let model_info = models::list_models()
+                    .into_iter()
+                    .find(|m| m.name == model_name && m.installed);
+                if let Some(info) = model_info {
+                    let path = models::model_path(&info.filename);
+                    let t_start = std::time::Instant::now();
+                    if let Ok(t) = transcriber::WhisperTranscriber::new(&path) {
+                        *state_for_load.transcriber.lock().unwrap() = Some(t);
+                        dlog!(
+                            "startup: transcriber '{}' loaded in {:.0} ms",
+                            model_name,
+                            t_start.elapsed().as_secs_f64() * 1000.0
+                        );
+                    }
                 }
-            }
+            });
 
             // System tray
             use tauri::tray::TrayIconBuilder;
             let state_for_menu = Arc::clone(&state);
 
+            let devices = device_scan.join().unwrap_or_default();
             let tray_menu = build_tray_menu(
                 app.handle(),
                 &state.config.lock().unwrap(),
                 &state.update.lock().unwrap(),
+                &devices,
             )?;
 
             // Bake the tray icon into the binary at compile time. Loading via
