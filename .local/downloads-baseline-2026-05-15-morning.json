@@ -1,0 +1,308 @@
+[
+  {
+    "tag": "v0.4.0",
+    "published": "2026-05-13T23:15:50Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.4.0_aarch64.dmg",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.4.0_x64-setup.exe",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.4.0_x64-setup.exe.sig",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz.sig",
+        "downloads": 1
+      },
+      {
+        "name": "latest.json",
+        "downloads": 0
+      }
+    ]
+  },
+  {
+    "tag": "v0.3.9",
+    "published": "2026-05-11T21:39:09Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.3.9_aarch64.dmg",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.9_x64-setup.exe",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_0.3.9_x64-setup.exe.sig",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz.sig",
+        "downloads": 1
+      },
+      {
+        "name": "latest.json",
+        "downloads": 7
+      }
+    ]
+  },
+  {
+    "tag": "v0.3.8",
+    "published": "2026-05-11T09:13:18Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.3.8_aarch64.dmg",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.8_x64-setup.exe",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.8_x64-setup.exe.sig",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz",
+        "downloads": 2
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz.sig",
+        "downloads": 1
+      },
+      {
+        "name": "latest.json",
+        "downloads": 2
+      }
+    ]
+  },
+  {
+    "tag": "v0.3.7",
+    "published": "2026-05-10T16:29:42Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.3.7_aarch64.dmg",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_0.3.7_x64-setup.exe",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_0.3.7_x64-setup.exe.sig",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz.sig",
+        "downloads": 1
+      },
+      {
+        "name": "latest.json",
+        "downloads": 4
+      }
+    ]
+  },
+  {
+    "tag": "v0.3.6",
+    "published": "2026-05-10T15:47:32Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.3.6_aarch64.dmg",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.6_x64-setup.exe",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_0.3.6_x64-setup.exe.sig",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz.sig",
+        "downloads": 1
+      },
+      {
+        "name": "latest.json",
+        "downloads": 1
+      }
+    ]
+  },
+  {
+    "tag": "v0.3.5",
+    "published": "2026-05-10T12:47:46Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.3.5_aarch64.dmg",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_0.3.5_x64-setup.exe",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.5_x64-setup.exe.sig",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz.sig",
+        "downloads": 1
+      },
+      {
+        "name": "latest.json",
+        "downloads": 3
+      }
+    ]
+  },
+  {
+    "tag": "v0.3.4",
+    "published": "2026-05-10T08:04:03Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.3.4_x64-setup.exe",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.4_x64-setup.exe.sig",
+        "downloads": 0
+      },
+      {
+        "name": "latest.json",
+        "downloads": 0
+      }
+    ]
+  },
+  {
+    "tag": "v0.3.3",
+    "published": "2026-05-10T07:28:51Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.3.3_aarch64.dmg",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.3_x64-setup.exe",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.3_x64-setup.exe.sig",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz.sig",
+        "downloads": 1
+      },
+      {
+        "name": "latest.json",
+        "downloads": 0
+      }
+    ]
+  },
+  {
+    "tag": "v0.3.2",
+    "published": "2026-05-09T23:16:23Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.3.2_aarch64.dmg",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.2_x64-setup.exe",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.2_x64-setup.exe.sig",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz.sig",
+        "downloads": 1
+      },
+      {
+        "name": "latest.json",
+        "downloads": 2
+      }
+    ]
+  },
+  {
+    "tag": "v0.3.1",
+    "published": "2026-05-09T22:46:08Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.3.1_aarch64.dmg",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_0.3.1_x64-setup.exe",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.1_x64-setup.exe.sig",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz.sig",
+        "downloads": 1
+      },
+      {
+        "name": "latest.json",
+        "downloads": 2
+      }
+    ]
+  },
+  {
+    "tag": "v0.3.0-rc10",
+    "published": "2026-05-09T18:45:34Z",
+    "assets": [
+      {
+        "name": "DM.Voice_0.3.0_aarch64.dmg",
+        "downloads": 0
+      },
+      {
+        "name": "DM.Voice_0.3.0_x64-setup.exe",
+        "downloads": 1
+      },
+      {
+        "name": "DM.Voice_aarch64.app.tar.gz",
+        "downloads": 0
+      }
+    ]
+  }
+]
