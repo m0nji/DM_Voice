@@ -1,35 +1,30 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" data-variant="color-modern">
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" data-variant="graphite-sand">
   <defs>
-    <linearGradient id="voice-color-modern-bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#24242d"/>
-      <stop offset="1" stop-color="#08080d"/>
+    <linearGradient id="voice-graphite-sand-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#181614"/>
+      <stop offset="1" stop-color="#090908"/>
     </linearGradient>
-    <linearGradient id="voice-color-modern-rim" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
-      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.03"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    <linearGradient id="voice-graphite-sand-rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E7D7BF" stop-opacity="0.10"/>
+      <stop offset="0.55" stop-color="#E7D7BF" stop-opacity="0.02"/>
+      <stop offset="1" stop-color="#E7D7BF" stop-opacity="0"/>
     </linearGradient>
-    <radialGradient id="voice-color-modern-accent" cx="0.45" cy="0.35" r="0.42">
-      <stop offset="0" stop-color="#ee9a5d" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#c97b4a" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="voice-color-modern-wave" x1="0.18" y1="0.28" x2="0.86" y2="0.72">
-      <stop offset="0" stop-color="#8ed8ff"/>
-      <stop offset="0.36" stop-color="#f7f5f2"/>
-      <stop offset="0.66" stop-color="#e59661"/>
-      <stop offset="1" stop-color="#b8f0d4"/>
+    <linearGradient id="voice-graphite-sand-metal" x1="140" y1="140" x2="884" y2="884" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F3E6D4"/>
+      <stop offset="0.26" stop-color="#E7D7BF"/>
+      <stop offset="0.50" stop-color="#C7B299"/>
+      <stop offset="0.72" stop-color="#A57B58"/>
+      <stop offset="1" stop-color="#D7B98F"/>
     </linearGradient>
-    <filter id="voice-color-modern-depth" x="-28%" y="-24%" width="156%" height="164%">
-      <feDropShadow dx="0" dy="26" stdDeviation="10" flood-color="#000000" flood-opacity="0.62"/>
-      <feDropShadow dx="0" dy="8" stdDeviation="4" flood-color="#c97b4a" flood-opacity="0.2"/>
-      <feDropShadow dx="0" dy="-4" stdDeviation="2" flood-color="#ffffff" flood-opacity="0.18"/>
+    <filter id="voice-graphite-sand-depth" x="-28%" y="-24%" width="156%" height="164%">
+      <feDropShadow dx="0" dy="26" stdDeviation="10" flood-color="#000000" flood-opacity="0.55"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="4" flood-color="#9B7659" flood-opacity="0.18"/>
     </filter>
   </defs>
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#voice-color-modern-bg)"/>
-  <rect x="100" y="100" width="824" height="412" rx="185" fill="url(#voice-color-modern-rim)"/>
-  <circle cx="452" cy="364" r="226" fill="url(#voice-color-modern-accent)" data-layer="accent-glint"/>
-  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="3"/>
-  <g id="voice-color-modern-mark" fill="none" stroke="url(#voice-color-modern-wave)" stroke-opacity="0.94" stroke-width="46" stroke-linecap="round" stroke-linejoin="round" filter="url(#voice-color-modern-depth)">
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#voice-graphite-sand-bg)"/>
+  <rect x="100" y="100" width="824" height="412" rx="185" fill="url(#voice-graphite-sand-rim)"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#E7D7BF" stroke-opacity="0.12" stroke-width="3"/>
+  <g id="voice-graphite-sand-mark" fill="none" stroke="url(#voice-graphite-sand-metal)" stroke-width="46" stroke-linecap="round" stroke-linejoin="round" filter="url(#voice-graphite-sand-depth)" transform="translate(512 512) scale(1.25) translate(-510 -501)">
     <path d="M 244 530 C 296 530 296 452 344 452 C 400 452 390 648 444 648 C 484 648 472 354 530 354 C 584 354 570 562 620 562 C 666 562 666 456 714 456 C 746 456 744 528 776 528"/>
   </g>
 </svg>
