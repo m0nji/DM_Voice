@@ -61,6 +61,20 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - name: Compile Assets.car from AppIcon.xcassets
+        # macOS laedt das App-Icon via CFBundleIconName aus dem Asset-Katalog
+        # (Assets.car), nicht aus icon.icns. Die committete Assets.car laesst
+        # sich nur auf macOS kompilieren und veraltet daher leicht — hier wird
+        # sie bei jedem Build frisch aus src-tauri/AppIcon.xcassets erzeugt.
+        run: |
+          xcrun actool src-tauri/AppIcon.xcassets \
+            --compile src-tauri \
+            --platform macosx \
+            --minimum-deployment-target 11.0 \
+            --app-icon AppIcon \
+            --output-partial-info-plist /tmp/assets-partial-info.plist
+          ls -la src-tauri/Assets.car
+
       - name: Decode Apple notarization API key
         # tauri-bundler erwartet den .p8-Key als Datei via APPLE_API_KEY_PATH,
         # nicht als base64-Inhalt. Unser GitHub-Secret APPLE_API_KEY hält den
