@@ -17,7 +17,7 @@ Simple Push-to-Talk - Speech-to-Text app for macOS and Windows. Hold the hotkey 
 ## Features
 
 - **Push-to-talk** with a freely configurable hotkey (default: `Alt+Space`)
-- **Whisper models** to choose from (tiny / small / medium / large-v3-turbo / large-v3) — switchable directly from the tray menu
+- **Whisper models** to choose from (tiny / small / medium / large-v3-turbo / large-v3-turbo-de / large-v3) — switchable directly from the tray menu. `large-v3-turbo-de` is a German finetune ([primeline/whisper-large-v3-turbo-german](https://huggingface.co/primeline/whisper-large-v3-turbo-german), Apache 2.0) with noticeably lower German WER at the same size and speed
 - **Local & offline** — no cloud upload. GPU-accelerated via **Metal** on Apple Silicon and **Vulkan** on Windows (NVIDIA, AMD, Intel Arc/Xe)
 - **Text injection** into any active app — Cmd+V on macOS (CGEvent + AX API), Ctrl+V on Windows
 - **Launch at login** as a tray-menu toggle

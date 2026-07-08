@@ -1713,12 +1713,12 @@ fn main() {
             // Auto-download default model if not installed
             let default_model = models::MODELS
                 .iter()
-                .find(|(name, _, _, _, _)| *name == "large-v3-turbo")
+                .find(|m| m.name == "large-v3-turbo")
                 .unwrap();
-            if !models::model_path(default_model.1).exists() {
+            if !models::model_path(default_model.filename).exists() {
                 let app_handle2 = app.handle().clone();
                 let app_handle3 = app.handle().clone();
-                let filename = default_model.1.to_string();
+                let filename = default_model.filename.to_string();
                 let state2 = Arc::clone(&state);
                 tauri::async_runtime::spawn(async move {
                     let name = "large-v3-turbo".to_string();

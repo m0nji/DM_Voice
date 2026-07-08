@@ -12,45 +12,72 @@ pub struct ModelInfo {
     pub installed: bool,
 }
 
-pub const MODELS: &[(&str, &str, u64, &str, &str)] = &[
-    (
-        "tiny",
-        "ggml-tiny.bin",
-        77_691_713,
-        "ausreichend",
-        "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
-    ),
-    (
-        "small",
-        "ggml-small.bin",
-        487_601_967,
-        "gut",
-        "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
-    ),
-    (
-        "medium",
-        "ggml-medium.bin",
-        1_533_763_059,
-        "sehr gut",
-        "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208",
-    ),
-    (
-        "large-v3-turbo",
-        "ggml-large-v3-turbo-q5_0.bin",
-        574_041_195,
-        "exzellent",
-        "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
-    ),
-    (
-        "large-v3",
-        "ggml-large-v3.bin",
-        3_095_033_483,
-        "exzellent",
-        "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2",
-    ),
-];
+#[derive(Debug, Clone, Copy)]
+pub struct CatalogModel {
+    pub name: &'static str,
+    pub filename: &'static str,
+    pub size_bytes: u64,
+    pub quality: &'static str,
+    pub sha256: &'static str,
+    /// Full download URL. Not derivable from `filename`: the German finetune
+    /// lives in a different HF repo whose remote filename differs from the
+    /// local one we store under.
+    pub url: &'static str,
+}
 
-const BASE_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main";
+pub const MODELS: &[CatalogModel] = &[
+    CatalogModel {
+        name: "tiny",
+        filename: "ggml-tiny.bin",
+        size_bytes: 77_691_713,
+        quality: "ausreichend",
+        sha256: "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21",
+        url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
+    },
+    CatalogModel {
+        name: "small",
+        filename: "ggml-small.bin",
+        size_bytes: 487_601_967,
+        quality: "gut",
+        sha256: "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
+        url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
+    },
+    CatalogModel {
+        name: "medium",
+        filename: "ggml-medium.bin",
+        size_bytes: 1_533_763_059,
+        quality: "sehr gut",
+        sha256: "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208",
+        url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin",
+    },
+    CatalogModel {
+        name: "large-v3-turbo",
+        filename: "ggml-large-v3-turbo-q5_0.bin",
+        size_bytes: 574_041_195,
+        quality: "exzellent",
+        sha256: "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+        url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
+    },
+    // primeline/whisper-large-v3-turbo-german (Apache 2.0), q5_0-GGML von
+    // cstr/whisper-large-v3-turbo-german-ggml. Gleiche Architektur/Größe wie
+    // large-v3-turbo, aber auf Deutsch nachtrainiert.
+    CatalogModel {
+        name: "large-v3-turbo-de",
+        filename: "ggml-large-v3-turbo-german-q5_0.bin",
+        size_bytes: 574_041_195,
+        quality: "exzellent (Deutsch-Finetune)",
+        sha256: "15e92e3db0993c52fffa781513eec9253475331c1be808f8fb409285c9d9d030",
+        url: "https://huggingface.co/cstr/whisper-large-v3-turbo-german-ggml/resolve/main/ggml-model-q5_0.bin",
+    },
+    CatalogModel {
+        name: "large-v3",
+        filename: "ggml-large-v3.bin",
+        size_bytes: 3_095_033_483,
+        quality: "exzellent",
+        sha256: "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2",
+        url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin",
+    },
+];
 
 pub fn models_dir() -> PathBuf {
     let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
@@ -61,24 +88,12 @@ pub fn model_path(filename: &str) -> PathBuf {
     models_dir().join(filename)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ModelMetadata {
-    pub size_bytes: u64,
-    pub sha256: &'static str,
-}
-
-pub fn expected_model_metadata(filename: &str) -> Option<ModelMetadata> {
-    MODELS
-        .iter()
-        .find(|(_, known, _, _, _)| *known == filename)
-        .map(|(_, _, size_bytes, _, sha256)| ModelMetadata {
-            size_bytes: *size_bytes,
-            sha256,
-        })
+pub fn catalog_model(filename: &str) -> Option<&'static CatalogModel> {
+    MODELS.iter().find(|m| m.filename == filename)
 }
 
 pub fn is_known_model_filename(filename: &str) -> bool {
-    expected_model_metadata(filename).is_some()
+    catalog_model(filename).is_some()
 }
 
 fn ensure_known_model_filename(filename: &str) -> Result<()> {
@@ -92,13 +107,13 @@ fn ensure_known_model_filename(filename: &str) -> Result<()> {
 pub fn list_models() -> Vec<ModelInfo> {
     MODELS
         .iter()
-        .map(|(name, filename, size, quality, _)| {
-            let installed = model_path(filename).exists();
+        .map(|m| {
+            let installed = model_path(m.filename).exists();
             ModelInfo {
-                name: name.to_string(),
-                filename: filename.to_string(),
-                size_bytes: *size,
-                quality: quality.to_string(),
+                name: m.name.to_string(),
+                filename: m.filename.to_string(),
+                size_bytes: m.size_bytes,
+                quality: m.quality.to_string(),
                 installed,
             }
         })
@@ -121,11 +136,10 @@ where
     use futures_util::StreamExt;
     use tokio::io::AsyncWriteExt;
     ensure_known_model_filename(filename)?;
-    let metadata = expected_model_metadata(filename).expect("known model metadata");
+    let metadata = catalog_model(filename).expect("known model metadata");
     let dir = models_dir();
     std::fs::create_dir_all(&dir)?;
-    let url = format!("{}/{}", BASE_URL, filename);
-    let response = reqwest::get(&url).await?.error_for_status()?;
+    let response = reqwest::get(metadata.url).await?.error_for_status()?;
     if let Some(content_length) = response.content_length() {
         if content_length != metadata.size_bytes {
             anyhow::bail!(
@@ -186,9 +200,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn list_models_returns_all_five() {
+    fn list_models_returns_all_six() {
         let models = list_models();
-        assert_eq!(models.len(), 5);
+        assert_eq!(models.len(), 6);
     }
 
     #[test]
@@ -210,12 +224,39 @@ mod tests {
 
     #[test]
     fn known_model_metadata_has_exact_size_and_sha256() {
-        let tiny = expected_model_metadata("ggml-tiny.bin").unwrap();
+        let tiny = catalog_model("ggml-tiny.bin").unwrap();
         assert_eq!(tiny.size_bytes, 77_691_713);
         assert_eq!(
             tiny.sha256,
             "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21"
         );
+    }
+
+    #[test]
+    fn german_finetune_downloads_from_its_own_repo() {
+        let de = catalog_model("ggml-large-v3-turbo-german-q5_0.bin").unwrap();
+        assert_eq!(de.name, "large-v3-turbo-de");
+        // Lokaler Dateiname ≠ Remote-Dateiname (Repo liefert ggml-model-q5_0.bin).
+        assert_eq!(
+            de.url,
+            "https://huggingface.co/cstr/whisper-large-v3-turbo-german-ggml/resolve/main/ggml-model-q5_0.bin"
+        );
+        assert_eq!(de.size_bytes, 574_041_195);
+    }
+
+    #[test]
+    fn model_names_are_unique_and_dom_id_safe() {
+        // Die Namen landen im Frontend als Element-IDs (`model-<name>`) und in
+        // Tray-Menü-IDs (`model:<name>`) — keine Leerzeichen, keine Duplikate.
+        let mut seen = std::collections::HashSet::new();
+        for m in MODELS {
+            assert!(seen.insert(m.name), "duplicate model name: {}", m.name);
+            assert!(
+                m.name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.'),
+                "model name not id-safe: {}",
+                m.name
+            );
+        }
     }
 
     #[test]
