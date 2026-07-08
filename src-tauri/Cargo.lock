@@ -1180,7 +1180,7 @@ dependencies = [
 
 [[package]]
 name = "dm-voice"
-version = "0.5.21"
+version = "0.5.22"
 dependencies = [
  "anyhow",
  "arboard",

@@ -24,7 +24,7 @@
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#voice-graphite-sand-bg)"/>
   <rect x="100" y="100" width="824" height="412" rx="185" fill="url(#voice-graphite-sand-rim)"/>
   <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#E7D7BF" stroke-opacity="0.12" stroke-width="3"/>
-  <g id="voice-graphite-sand-mark" fill="none" stroke="url(#voice-graphite-sand-metal)" stroke-width="46" stroke-linecap="round" stroke-linejoin="round" filter="url(#voice-graphite-sand-depth)" transform="translate(512 512) scale(1.12) translate(-510 -501)">
+  <g id="voice-graphite-sand-mark" fill="none" stroke="url(#voice-graphite-sand-metal)" stroke-width="46" stroke-linecap="round" stroke-linejoin="round" filter="url(#voice-graphite-sand-depth)" transform="translate(512 512) scale(0.92) translate(-510 -501)">
     <path d="M 244 530 C 296 530 296 452 344 452 C 400 452 390 648 444 648 C 484 648 472 354 530 354 C 584 354 570 562 620 562 C 666 562 666 456 714 456 C 746 456 744 528 776 528"/>
   </g>
 </svg>
