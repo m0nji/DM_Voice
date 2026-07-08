@@ -9,46 +9,46 @@
   </defs>
 
   <!-- pointer triangle as if menu drops down from menubar tray icon -->
-  <polygon points="160,4 168,12 152,12" fill="#2c2c2e" stroke="#48484a" stroke-width="0.5"/>
+  <polygon points="160,4 168,12 152,12" fill="#23201D" stroke="#342F2A" stroke-width="0.5"/>
 
   <!-- menu container -->
   <rect x="10" y="12" width="300" height="442" rx="12" ry="12"
-        fill="#2c2c2e" stroke="#48484a" stroke-width="0.5" filter="url(#shadow)"/>
+        fill="#23201D" stroke="#342F2A" stroke-width="0.5" filter="url(#shadow)"/>
 
   <!-- App + version (disabled header) -->
-  <text x="22" y="44" fill="#8e8e93" font-size="15" font-weight="500">DM Voice 0.4.0</text>
-  <line x1="14" y1="62" x2="306" y2="62" stroke="#48484a" stroke-width="0.5"/>
+  <text x="22" y="44" fill="#A9A39A" font-size="15" font-weight="500">DM Voice 0.4.0</text>
+  <line x1="14" y1="62" x2="306" y2="62" stroke="#342F2A" stroke-width="0.5"/>
 
   <!-- Check for updates… (always visible) -->
-  <text x="22" y="90" fill="#ffffff" font-size="15">Check for updates…</text>
-  <line x1="14" y1="108" x2="306" y2="108" stroke="#48484a" stroke-width="0.5"/>
+  <text x="22" y="90" fill="#F5F1EA" font-size="15">Check for updates…</text>
+  <line x1="14" y1="108" x2="306" y2="108" stroke="#342F2A" stroke-width="0.5"/>
 
   <!-- Model section header (disabled) -->
-  <text x="22" y="138" fill="#8e8e93" font-size="15" font-weight="500">Model</text>
+  <text x="22" y="138" fill="#A9A39A" font-size="15" font-weight="500">Model</text>
 
   <!-- model items, ~32px row height -->
-  <text x="40" y="170" fill="#ffffff" font-size="15" opacity="0.4">tiny  (not downloaded)</text>
-  <text x="40" y="202" fill="#ffffff" font-size="15" opacity="0.4">small  (not downloaded)</text>
-  <text x="40" y="234" fill="#ffffff" font-size="15" opacity="0.4">medium  (not downloaded)</text>
+  <text x="40" y="170" fill="#F5F1EA" font-size="15" opacity="0.4">tiny  (not downloaded)</text>
+  <text x="40" y="202" fill="#F5F1EA" font-size="15" opacity="0.4">small  (not downloaded)</text>
+  <text x="40" y="234" fill="#F5F1EA" font-size="15" opacity="0.4">medium  (not downloaded)</text>
 
   <!-- active model row with subtle highlight + checkmark -->
-  <rect x="14" y="246" width="292" height="28" rx="6" fill="#ffffff" opacity="0.06"/>
-  <path d="M 22 263 L 28 269 L 38 257" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="44" y="267" fill="#ffffff" font-size="15" font-weight="500">large-v3-turbo</text>
+  <rect x="14" y="246" width="292" height="28" rx="6" fill="#F5F1EA" opacity="0.06"/>
+  <path d="M 22 263 L 28 269 L 38 257" fill="none" stroke="#F5F1EA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="44" y="267" fill="#F5F1EA" font-size="15" font-weight="500">large-v3-turbo</text>
 
-  <text x="40" y="298" fill="#ffffff" font-size="15" opacity="0.4">large-v3  (not downloaded)</text>
+  <text x="40" y="298" fill="#F5F1EA" font-size="15" opacity="0.4">large-v3  (not downloaded)</text>
 
-  <line x1="14" y1="316" x2="306" y2="316" stroke="#48484a" stroke-width="0.5"/>
+  <line x1="14" y1="316" x2="306" y2="316" stroke="#342F2A" stroke-width="0.5"/>
 
   <!-- Settings -->
-  <text x="22" y="344" fill="#ffffff" font-size="15">Settings…</text>
+  <text x="22" y="344" fill="#F5F1EA" font-size="15">Settings…</text>
 
   <!-- Start at login — checked -->
-  <path d="M 22 373 L 28 379 L 38 367" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="44" y="378" fill="#ffffff" font-size="15">Start at login</text>
+  <path d="M 22 373 L 28 379 L 38 367" fill="none" stroke="#F5F1EA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="44" y="378" fill="#F5F1EA" font-size="15">Start at login</text>
 
-  <line x1="14" y1="396" x2="306" y2="396" stroke="#48484a" stroke-width="0.5"/>
+  <line x1="14" y1="396" x2="306" y2="396" stroke="#342F2A" stroke-width="0.5"/>
 
   <!-- Quit -->
-  <text x="22" y="424" fill="#ffffff" font-size="15">Quit DM Voice</text>
+  <text x="22" y="424" fill="#F5F1EA" font-size="15">Quit DM Voice</text>
 </svg>

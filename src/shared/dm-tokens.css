@@ -1,0 +1,59 @@
+:root {
+  /* DM Apps - Graphite Sand / Dark */
+  --dm-bg: #090908;
+  --dm-surface: #181614;
+  --dm-surface-2: #23201D;
+  --dm-primary: #C7B299;
+  --dm-secondary: #9B7659;
+  --dm-accent: #E7D7BF;
+  --dm-text: #F5F1EA;
+  --dm-muted: #A9A39A;
+  --dm-line: #342F2A;
+
+  /* DM Apps - Graphite Sand / Light */
+  --dm-light-bg: #F5F1EA;
+  --dm-light-surface: #FFFFFF;
+  --dm-light-surface-2: #EEE6DA;
+  --dm-light-primary: #8B6F52;
+  --dm-light-secondary: #5E5146;
+  --dm-light-accent: #C7B299;
+  --dm-light-text: #171512;
+  --dm-light-muted: #6F675E;
+  --dm-light-line: #DED3C4;
+
+  /* Effects */
+  --dm-radius-sm: 12px;
+  --dm-radius-md: 20px;
+  --dm-radius-lg: 28px;
+  --dm-radius-xl: 36px;
+  --dm-shadow-soft: 0 24px 80px rgba(0,0,0,.28);
+  --dm-shadow-logo: 0 8px 14px rgba(0,0,0,.30), 0 22px 42px rgba(0,0,0,.20);
+  --dm-gradient-metal: linear-gradient(135deg, #F3E6D4 0%, #E7D7BF 26%, #C7B299 50%, #A57B58 72%, #D7B98F 100%);
+  --dm-gradient-bg: radial-gradient(circle at 22% 8%, rgba(199,178,153,.15), transparent 34%), radial-gradient(circle at 86% 20%, rgba(155,118,89,.12), transparent 32%), linear-gradient(180deg,#090908 0%,#000 100%);
+
+  /* Typography */
+  --dm-font-sans: Inter, Geist, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dm-font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --dm-container: 1200px;
+  --dm-space-1: 4px;
+  --dm-space-2: 8px;
+  --dm-space-3: 12px;
+  --dm-space-4: 16px;
+  --dm-space-6: 24px;
+  --dm-space-8: 32px;
+  --dm-space-12: 48px;
+  --dm-space-16: 64px;
+  --dm-space-24: 96px;
+}
+
+[data-theme="light"] {
+  --dm-bg: var(--dm-light-bg);
+  --dm-surface: var(--dm-light-surface);
+  --dm-surface-2: var(--dm-light-surface-2);
+  --dm-primary: var(--dm-light-primary);
+  --dm-secondary: var(--dm-light-secondary);
+  --dm-accent: var(--dm-light-accent);
+  --dm-text: var(--dm-light-text);
+  --dm-muted: var(--dm-light-muted);
+  --dm-line: var(--dm-light-line);
+}
