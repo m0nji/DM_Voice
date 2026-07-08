@@ -1009,6 +1009,17 @@ fn wake_models_dir(app: &AppHandle) -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/wakeword")
 }
 
+fn vad_model_file(app: &AppHandle) -> std::path::PathBuf {
+    if let Ok(res) = app.path().resource_dir() {
+        let p = res.join("resources").join("vad").join("ggml-silero-v5.1.2.bin");
+        if p.exists() {
+            return p;
+        }
+    }
+    // Dev fallback (cargo run / tauri dev — resources not bundled).
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/vad/ggml-silero-v5.1.2.bin")
+}
+
 fn apply_wake_word_config(app: &AppHandle, state: &SharedState) {
     let (enabled, model, sens, timeout, device) = {
         let cfg = state.config.lock().unwrap();
@@ -1495,6 +1506,10 @@ fn main() {
                     metal_dir.to_string_lossy().as_ref(),
                 );
             }
+
+            // Register the bundled Silero-VAD model before the first
+            // transcriber is constructed. Missing file → VAD silently off.
+            transcriber::init_vad_model(Some(vad_model_file(app.handle())));
 
             // Load transcriber if model is installed. Runs on a worker thread:
             // Whisper init takes several hundred ms to seconds for the large
