@@ -10,6 +10,9 @@
   body {
     font-family: var(--dm-font-sans);
     font-size: 13px;
+    /* min-height: full window, sonst endet die Gradient-Box am Inhalt und
+       der Verlauf kachelt darunter neu (sichtbare harte Kante). */
+    min-height: 100vh;
     background: var(--dm-gradient-bg);
     color: var(--dm-text);
     padding: 16px 20px 20px;
