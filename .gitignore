@@ -18,8 +18,22 @@ src-tauri/gen/
 # System
 .DS_Store
 
-# Local tooling — never push these to public GitHub
-.claude/
-.superpowers/
-docs/
+# Logs
 *.log
+
+# Internal tooling & planning — tracked in GitLab (internal), stripped for public GitHub.
+# Machine-local / runtime state stays ignored everywhere:
+.claude/*
+!.claude/skills/
+!.claude/agents/
+!.claude/*.md
+.superpowers/**/state/
+
+# --- für öffentliches GitHub entfernt (nur intern auf GitLab) ---
+docs
+.claude
+.superpowers
+AGENTS.md
+CLAUDE.md
+.gitlab-ci.yml
+scripts/publish-to-github.sh

@@ -47,11 +47,15 @@
     margin-bottom: 16px; color: var(--dm-text);
   }
 
-  /* Sidebar settings layout (ported from DM_Workspace) */
-  .settings-body { display: flex; gap: 20px; align-items: stretch; }
+  /* Sidebar settings layout (ported from DM_Workspace).
+     Grouped surfaces per DM_CICD 05_ui_system/components.md (2026-07-25): nav and
+     the visible section are each ONE rounded outline holding plain rows — no fill,
+     the window background runs through, nothing draws a second edge beside it. */
+  .settings-body { display: flex; gap: 8px; align-items: stretch; }
   .settings-nav {
     display: flex; flex-direction: column; gap: 2px;
     min-width: 140px; flex-shrink: 0;
+    border: 1px solid var(--dm-line); border-radius: var(--dm-radius-sm); padding: 6px;
   }
   .settings-nav-item {
     text-align: left; padding: 8px 12px; border-radius: var(--dm-radius-sm);
@@ -60,7 +64,10 @@
   }
   .settings-nav-item:hover { color: var(--dm-text); background: rgba(245,241,234,0.06); }
   .settings-nav-item.active { color: var(--dm-primary); background: rgba(199,178,153,0.12); }
-  .settings-content { flex: 1; min-width: 0; overflow-y: auto; max-height: 520px; }
+  /* ONE grouped surface around the whole content area — the frame stays put while
+     the sections scroll inside it, rather than a frame per section. */
+  .settings-content { flex: 1; min-width: 0; overflow-y: auto; max-height: 520px;
+    border: 1px solid var(--dm-line); border-radius: var(--dm-radius-sm); padding: 12px; }
   .settings-content section { display: none; }
 
   .field { margin-bottom: 16px; }
