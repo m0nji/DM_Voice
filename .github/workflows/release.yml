@@ -13,6 +13,14 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to rebuild with the current CI workflow
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
 permissions:
   contents: write
@@ -35,6 +43,7 @@ jobs:
           # Full history + tags so the changelog step can diff against
           # the previous tag.
           fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.ref_name }}
 
       - name: Generate release notes
         id: notes
@@ -44,7 +53,7 @@ jobs:
         # otherwise race-overwrite each other's release text.
         shell: bash
         run: |
-          body="$(.github/scripts/release-notes.sh "${GITHUB_REF_NAME}")"
+          body="$(.github/scripts/release-notes.sh "${RELEASE_TAG}")"
           {
             echo 'body<<RELEASE_NOTES_EOF'
             echo "$body"
@@ -122,16 +131,16 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "DM Voice ${{ github.ref_name }}"
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: "DM Voice ${{ env.RELEASE_TAG }}"
           releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: ${{ !endsWith(github.ref_name, '-mac') }}
+          releaseDraft: ${{ !endsWith(inputs.release_tag || github.ref_name, '-mac') }}
           # Mac-only test tags (vX.Y.Z-mac) publish as a prerelease so they
           # never become GitHub's "Latest" — otherwise tauri-action's
           # auto-generated mac-only latest.json would be served from the
           # /releases/latest updater endpoint and break Windows clients (no
           # windows entry) while pushing an untested build to Mac clients.
-          prerelease: ${{ endsWith(github.ref_name, '-mac') }}
+          prerelease: ${{ endsWith(inputs.release_tag || github.ref_name, '-mac') }}
           args: --target ${{ matrix.target }}
           projectPath: src-tauri
 
@@ -140,7 +149,7 @@ jobs:
     # build + publish only the macOS DMG (the updater-manifest job depends on
     # this job, so it skips too — no latest.json, so existing installs aren't
     # auto-updated to a test build). A clean `vX.Y.Z` tag builds everything.
-    if: ${{ !endsWith(github.ref_name, '-mac') }}
+    if: ${{ !endsWith(inputs.release_tag || github.ref_name, '-mac') }}
     strategy:
       fail-fast: false
       matrix:
@@ -163,6 +172,7 @@ jobs:
           # Full history + tags so the changelog step can diff against
           # the previous tag.
           fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.ref_name }}
 
       - name: Generate release notes
         id: notes
@@ -170,7 +180,7 @@ jobs:
         # jobs' release-body writes against each other.
         shell: bash
         run: |
-          body="$(.github/scripts/release-notes.sh "${GITHUB_REF_NAME}")"
+          body="$(.github/scripts/release-notes.sh "${RELEASE_TAG}")"
           {
             echo 'body<<RELEASE_NOTES_EOF'
             echo "$body"
@@ -230,7 +240,7 @@ jobs:
         # Build-Zeit. LunarG-SDK liefert beides; cache spart ~3 min pro Run.
         uses: humbletim/install-vulkan-sdk@30ba978f977e81b72d091fc8888feb1fb26f9aff # v1.2
         with:
-          version: 1.3.290.0
+          version: 1.4.363.0
           cache: true
 
       - name: Cache cargo registry & target
@@ -267,8 +277,8 @@ jobs:
           # Kein OS-Code-Signing in CI (kein EV-Cert vorhanden). User sehen
           # SmartScreen-Warnung beim ersten Start.
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "DM Voice ${{ github.ref_name }}"
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: "DM Voice ${{ env.RELEASE_TAG }}"
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
@@ -285,7 +295,7 @@ jobs:
       - name: Generate and upload latest.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ env.RELEASE_TAG }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
