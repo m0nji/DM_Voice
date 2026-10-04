@@ -18,6 +18,12 @@ on:
         description: Existing release tag to rebuild with the current CI workflow
         required: true
         type: string
+      platform:
+        description: Platform to rebuild
+        type: choice
+        options: [all, macos, windows]
+        default: all
+        required: true
 
 env:
   RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
@@ -27,6 +33,7 @@ permissions:
 
 jobs:
   build-macos:
+    if: ${{ !inputs.platform || inputs.platform == 'all' || inputs.platform == 'macos' }}
     strategy:
       fail-fast: false
       matrix:
@@ -149,7 +156,7 @@ jobs:
     # build + publish only the macOS DMG (the updater-manifest job depends on
     # this job, so it skips too — no latest.json, so existing installs aren't
     # auto-updated to a test build). A clean `vX.Y.Z` tag builds everything.
-    if: ${{ !endsWith(inputs.release_tag || github.ref_name, '-mac') }}
+    if: ${{ !endsWith(inputs.release_tag || github.ref_name, '-mac') && (!inputs.platform || inputs.platform == 'all' || inputs.platform == 'windows') }}
     strategy:
       fail-fast: false
       matrix:
@@ -235,13 +242,30 @@ jobs:
         run: |
           Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -Type DWord
 
-      - name: Install Vulkan SDK
-        # whisper-rs `vulkan` feature braucht Vulkan-Header + libs zur
-        # Build-Zeit. LunarG-SDK liefert beides; cache spart ~3 min pro Run.
-        uses: humbletim/install-vulkan-sdk@30ba978f977e81b72d091fc8888feb1fb26f9aff # v1.2
-        with:
-          version: 1.4.363.0
-          cache: true
+      - name: Install and verify Vulkan SDK
+        # Recent SDK installers contain multiple archives. Extracting the .exe
+        # with 7z can return success but omit Include/ and Lib/ entirely.
+        # Use LunarG's supported unattended installer and verify build inputs.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdkVersion = '1.4.363.0'
+          $installer = Join-Path $env:RUNNER_TEMP 'vulkan-sdk.exe'
+          $sdkRoot = Join-Path $env:RUNNER_TEMP "vulkan-sdk-$sdkVersion"
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$sdkVersion/windows/vulkansdk-windows-X64-$sdkVersion.exe" -OutFile $installer
+          $expected = '94a82d378f7a5e3e54c9db7d2fb7016af136e14ac0a18dbf0f2f67a36352d141'
+          if ((Get-FileHash $installer -Algorithm SHA256).Hash -ne $expected) {
+            throw 'Vulkan SDK installer checksum mismatch'
+          }
+          $install = Start-Process -FilePath $installer -ArgumentList @('--root', "`"$sdkRoot`"", '--accept-licenses', '--default-answer', '--confirm-command', 'install', 'copy_only=1') -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Vulkan SDK installation failed: $($install.ExitCode)" }
+          foreach ($relative in @('Include\vulkan\vulkan.h', 'Lib\vulkan-1.lib', 'Bin\glslc.exe', 'Bin\glslangValidator.exe')) {
+            if (!(Test-Path (Join-Path $sdkRoot $relative))) { throw "Missing Vulkan SDK build input: $relative" }
+          }
+          "VULKAN_SDK=$sdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          (Join-Path $sdkRoot 'Bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $sdkRoot 'Bin\glslangValidator.exe') --version
+          if ($LASTEXITCODE -ne 0) { throw 'Vulkan shader compiler verification failed' }
 
       - name: Cache cargo registry & target
         uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
@@ -290,6 +314,7 @@ jobs:
   # genau diese Datei vom releases/latest/download/-Endpoint.
   publish-updater-manifest:
     needs: [build-macos, build-windows]
+    if: ${{ always() && !cancelled() && !endsWith(inputs.release_tag || github.ref_name, '-mac') && (needs.build-macos.result == 'success' || needs.build-windows.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - name: Generate and upload latest.json
