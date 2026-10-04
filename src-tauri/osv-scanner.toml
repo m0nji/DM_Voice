@@ -1,0 +1,22 @@
+# Ausnahmen für den wöchentlichen Dependency-Audit (dm/renovate, osv-scanner).
+# Jede Ausnahme hat ein Ablaufdatum und muss dann neu geprüft werden.
+
+# glib 0.18 kommt über tauri/wry → gtk-rs 0.18 und wird nur für Linux gebaut.
+# macOS- und Windows-Builds enthalten es nicht (cargo tree --target ...).
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+ignoreUntil = 2027-03-31
+reason = "glib 0.18 nur im Linux-Build (tauri/gtk-rs), DM-Voice wird nur für macOS/Windows ausgeliefert"
+
+[[IgnoredVulns]]
+id = "GHSA-wrw7-89jp-8q8g"
+ignoreUntil = 2027-03-31
+reason = "Alias von RUSTSEC-2024-0429, siehe oben"
+
+# memmap2 0.8 kommt über enigo 0.2 → xkbcommon 0.7, ebenfalls nur Linux.
+# Achtung: die ID gilt für alle memmap2-Versionen. Beim Ablauf prüfen, ob enigo
+# aktualisiert werden kann.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0186"
+ignoreUntil = 2027-03-31
+reason = "memmap2 0.8 nur im Linux-Build (enigo 0.2 → xkbcommon), nicht in macOS/Windows"

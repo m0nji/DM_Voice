@@ -1,4 +1,4 @@
-use circular_buffer::CircularBuffer;
+use circular_buffer::FixedCircularBuffer;
 use log::trace;
 use rust_embed::Embed;
 use std::error::Error;
@@ -21,8 +21,8 @@ const MEL_CIRC_SIZE: usize = 80 / 5;
 pub struct AudioFeaturesTract {
     mel: ModelType,
     emb: ModelType,
-    pub feature_buffer: Box<CircularBuffer<FEATURE_BUFFER_SIZE, Tensor>>,
-    pub mel_spectrogram_buffer: Box<CircularBuffer<MEL_CIRC_SIZE, Tensor>>,
+    pub feature_buffer: Box<FixedCircularBuffer<Tensor, FEATURE_BUFFER_SIZE>>,
+    pub mel_spectrogram_buffer: Box<FixedCircularBuffer<Tensor, MEL_CIRC_SIZE>>,
 }
 
 impl AudioFeaturesTract {
@@ -55,11 +55,11 @@ impl AudioFeaturesTract {
             .into_runnable()
             .unwrap();
 
-        let mut feature_buffer = CircularBuffer::<FEATURE_BUFFER_SIZE, Tensor>::boxed();
+        let mut feature_buffer = FixedCircularBuffer::<Tensor, FEATURE_BUFFER_SIZE>::boxed();
         for _ in 0..FEATURE_BUFFER_SIZE {
             feature_buffer.push_back(Tensor::from_shape(&[1, 1, 1, 96], &[0f32; 96]).unwrap());
         }
-        let mut mel_spectrogram_buffer: Box<CircularBuffer<MEL_CIRC_SIZE, Tensor>> = CircularBuffer::<MEL_CIRC_SIZE, Tensor>::boxed();
+        let mut mel_spectrogram_buffer: Box<FixedCircularBuffer<Tensor, MEL_CIRC_SIZE>> = FixedCircularBuffer::<Tensor, MEL_CIRC_SIZE>::boxed();
         for _ in 0..MEL_CIRC_SIZE {
             mel_spectrogram_buffer.push_back(Tensor::from_shape(&[5, 32], &[0f32; 5 * 32]).unwrap());
         }

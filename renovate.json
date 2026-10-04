@@ -1,0 +1,42 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "group:allNonMajor",
+    ":dependencyDashboard"
+  ],
+  "timezone": "Europe/Berlin",
+  "schedule": [
+    "before 7am on monday"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "prConcurrentLimit": 5,
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "labels": [
+      "security"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "cpal ist gepatcht vendored (src-tauri/vendor/cpal, CoreAudio-Fix) – nur von Hand aktualisieren.",
+      "matchPackageNames": [
+        "cpal"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "0.x-Crates: ein Minor-Sprung ist ein Breaking Change – eigener MR statt Sammel-MR.",
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchCurrentVersion": "/^[~^=]?0\\./",
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "groupName": null
+    }
+  ]
+}

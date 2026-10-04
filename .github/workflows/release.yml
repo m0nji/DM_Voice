@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # Full history + tags so the changelog step can diff against
           # the previous tag.
@@ -52,7 +52,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           targets: ${{ matrix.target }}
 
@@ -125,7 +125,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "DM Voice ${{ github.ref_name }}"
           releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: false
+          releaseDraft: ${{ !endsWith(github.ref_name, '-mac') }}
           # Mac-only test tags (vX.Y.Z-mac) publish as a prerelease so they
           # never become GitHub's "Latest" — otherwise tauri-action's
           # auto-generated mac-only latest.json would be served from the
@@ -158,7 +158,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # Full history + tags so the changelog step can diff against
           # the previous tag.
@@ -178,7 +178,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           targets: ${{ matrix.target }}
 
@@ -270,7 +270,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "DM Voice ${{ github.ref_name }}"
           releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }} --bundles nsis updater
           projectPath: src-tauri
@@ -333,3 +333,5 @@ jobs:
 
           cat latest.json
           gh release upload "$TAG" latest.json --repo "$REPO" --clobber
+          # Only expose the release after BOTH installers and updater signatures exist.
+          gh release edit "$TAG" --repo "$REPO" --draft=false --latest

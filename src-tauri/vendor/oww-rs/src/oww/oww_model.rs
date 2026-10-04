@@ -3,7 +3,7 @@ use crate::model::Detection;
 use crate::oww;
 use crate::oww::OwwModel;
 use crate::oww::audio::AudioFeaturesTract;
-use circular_buffer::CircularBuffer;
+use circular_buffer::FixedCircularBuffer;
 use log::{debug, trace, warn};
 use oww::DETECTION_BUFFER_SIZE;
 use rust_embed::Embed;
@@ -120,7 +120,7 @@ impl OwwModel {
             SpeechUnlockType::OpenWakeWordAlexa => "Alexa".to_string(),
             SpeechUnlockType::OpenWakeWordHeyMycroft => "Hey Mycroft".to_string(),
         };
-        let detections_buffer = CircularBuffer::<DETECTION_BUFFER_SIZE, f32>::new();
+        let detections_buffer = FixedCircularBuffer::<f32, DETECTION_BUFFER_SIZE>::new();
 
         let mut rdr = Cursor::new(model_data);
 
@@ -137,7 +137,7 @@ impl OwwModel {
 
     pub fn from_file<P: AsRef<Path>>(path: P, model_unlock_word: String, threshold: f32) -> io::Result<OwwModel> {
         let model_data = fs::read(path)?;
-        let detections_buffer = CircularBuffer::<DETECTION_BUFFER_SIZE, f32>::new();
+        let detections_buffer = FixedCircularBuffer::<f32, DETECTION_BUFFER_SIZE>::new();
 
         let mut rdr = Cursor::new(model_data);
 

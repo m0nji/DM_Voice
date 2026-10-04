@@ -6,7 +6,7 @@ use crate::mic::process_audio::resample_into_chunks;
 use crate::mic::resampler::make_resampler;
 use crate::model::{Detection};
 use crate::Models;
-use circular_buffer::CircularBuffer;
+use circular_buffer::FixedCircularBuffer;
 use cpal::SampleFormat;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use log::{debug, error, info, warn};
@@ -96,7 +96,7 @@ impl MicHandlerCpal {
         let cancellation_token_worker = cancellation_token.clone();
 
         spawn(move || {
-            let mut ring_buffer = CircularBuffer::<{ RING_BUFFER_SIZE }, Chunk>::boxed();
+            let mut ring_buffer = FixedCircularBuffer::<Chunk, { RING_BUFFER_SIZE }>::boxed();
             while !cancellation_token_worker.is_cancelled() {
                 if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(100)) {
                     ring_buffer.push_back(chunk.clone());

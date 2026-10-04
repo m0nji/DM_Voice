@@ -1,7 +1,7 @@
 use crate::ModelType;
 use crate::model::{Detection, Model};
 use crate::oww::audio::AudioFeaturesTract;
-use circular_buffer::CircularBuffer;
+use circular_buffer::FixedCircularBuffer;
 use std::time::Instant;
 
 pub mod audio;
@@ -17,8 +17,8 @@ pub struct OwwModel {
     pub tract_model: ModelType,
     threshold: f32,
     pub last_detection_time: Instant,
-    // pub detections_buffer: CircularBuffer<DETECTION_BUFFER_SIZE, f32>,
-    pub detections_buffer: CircularBuffer<DETECTION_BUFFER_SIZE, f32>,
+    // pub detections_buffer: FixedCircularBuffer<f32, DETECTION_BUFFER_SIZE>,
+    pub detections_buffer: FixedCircularBuffer<f32, DETECTION_BUFFER_SIZE>,
     pub model_unlock_word: String,
 }
 

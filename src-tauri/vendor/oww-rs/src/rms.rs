@@ -1,7 +1,7 @@
 use crate::RMS_BUFFER_SIZE;
-use circular_buffer::CircularBuffer;
+use circular_buffer::FixedCircularBuffer;
 
-pub fn calculate_max_rms(buffer: &CircularBuffer<RMS_BUFFER_SIZE, i16>) -> i16 {
+pub fn calculate_max_rms(buffer: &FixedCircularBuffer<i16, RMS_BUFFER_SIZE>) -> i16 {
     let mut max = 0;
     for rms in buffer.to_vec() {
         let abs_rms = rms.abs();
@@ -30,7 +30,7 @@ pub fn calculate_rms(chunk: &[i16]) -> i16 {
 #[cfg(test)]
 mod tests {
     use crate::rms::{calculate_max_rms, calculate_rms};
-    use circular_buffer::CircularBuffer;
+    use circular_buffer::FixedCircularBuffer;
     #[test]
     fn tst_rms_i16() {
         let rms = calculate_rms(&vec![1_i16, 2_i16, 3_i16]);
@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn test_max_rms_i16() {
-        let mut buffer = CircularBuffer::new();
+        let mut buffer = FixedCircularBuffer::new();
         buffer.extend_from_slice(&vec![1, 2, 3, -1, 0, 0, 1, 3]);
         let mut max_rms = calculate_max_rms(&buffer);
 
